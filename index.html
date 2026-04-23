@@ -1,0 +1,4437 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>سبوبة إسكندرية | سبوبة مابس</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Cairo', sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+            height: 100vh;
+            transition: background 0.3s, color 0.3s;
+        }
+        
+        body.light-mode {
+            --primary: #3b82f6;
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --text: #0f172a;
+            --admin: #8b5cf6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --support-bg-start: #f3e8ff;
+            --support-bg-end: #e9d5ff;
+        }
+        
+        body.dark-mode {
+            --primary: #3b82f6;
+            --bg: #020617;
+            --card: #0f172a;
+            --text: #f8fafc;
+            --admin: #8b5cf6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --support-bg-start: #1a0b2e;
+            --support-bg-end: #0f0f1a;
+        }
+
+        .view {
+            display: none;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 20px;
+            padding-bottom: 80px;
+            animation: fadeInUp 0.3s ease;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        /* شاشة تسجيل الدخول */
+        .login-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 30px 20px;
+            background: linear-gradient(135deg, var(--bg) 0%, var(--card) 100%);
+        }
+
+        .login-card {
+            background: var(--card);
+            border-radius: 40px;
+            padding: 40px 25px;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            font-size: 2rem;
+        }
+
+        .logo h1 span:first-child { color: var(--primary); }
+        .logo h1 span:last-child { color: #f59e0b; }
+
+        /* الخريطة */
+        #map {
+            height: 100%;
+            width: 100%;
+            z-index: 1;
+        }
+
+        .search-bar {
+            position: absolute;
+            top: 60px;
+            left: 15px;
+            right: 15px;
+            z-index: 1001;
+            background: var(--card);
+            border-radius: 50px;
+            padding: 12px 20px;
+            border: 1px solid var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-bar input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .search-bar i {
+            color: var(--primary);
+        }
+
+        .search-results {
+            position: absolute;
+            top: 120px;
+            left: 15px;
+            right: 15px;
+            background: var(--card);
+            border-radius: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1002;
+            display: none;
+            border: 1px solid #334155;
+        }
+
+        .search-results div {
+            padding: 12px 20px;
+            border-bottom: 1px solid #1e293b;
+            cursor: pointer;
+        }
+
+        .search-results div:hover {
+            background: var(--primary);
+        }
+
+        .map-overlay {
+            position: absolute;
+            bottom: 80px;
+            left: 10px;
+            right: 10px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px;
+            border-radius: 20px;
+            z-index: 1000;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .loc-step {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .step-btn {
+            flex: 1;
+            padding: 8px;
+            border-radius: 12px;
+            border: 2px solid #1e293b;
+            background: #1e293b;
+            color: white;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .step-btn.active {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .btn-main {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 16px;
+            background: var(--primary);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: transform 0.1s, background 0.2s;
+        }
+        
+        .btn-main:active {
+            transform: scale(0.97);
+            background: #2563eb;
+        }
+
+        .center-marker {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -100%);
+            z-index: 2000;
+            pointer-events: none;
+        }
+
+        .center-marker i {
+            font-size: 2rem;
+            color: #ef4444;
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5));
+        }
+
+        /* القائمة السفلية */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            height: 60px;
+            background: var(--card);
+            display: none;
+            justify-content: space-around;
+            align-items: center;
+            border-top: 1px solid #1e293b;
+            z-index: 3000;
+        }
+
+        .nav-item {
+            color: #475569;
+            text-align: center;
+            flex: 1;
+            cursor: pointer;
+            padding: 8px 0;
+            border-radius: 12px;
+            transition: all 0.2s;
+        }
+
+        .nav-item.active {
+            color: var(--primary);
+            background: rgba(59, 130, 246, 0.15);
+        }
+
+        .nav-item i {
+            font-size: 1.5rem;
+            display: block;
+        }
+
+        .nav-item span {
+            font-size: 0.7rem;
+        }
+
+        /* بطاقة الطلب */
+        .order-card {
+            background: var(--card);
+            padding: 15px;
+            border-radius: 20px;
+            margin-bottom: 15px;
+            border-right: 4px solid var(--primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .order-card.highlight {
+            border-right-color: var(--warning);
+            background: rgba(245, 158, 11, 0.1);
+            animation: pulse 1s ease;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        /* أزرار الفلتر */
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            overflow-x: auto;
+        }
+
+        .filter-btn {
+            padding: 8px 15px;
+            background: #1e293b;
+            border: none;
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        
+        .filter-btn:active {
+            transform: scale(0.95);
+        }
+
+        .filter-btn.active {
+            background: var(--primary);
+        }
+
+        /* شاشة الشات العادية */
+        .chat-screen-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 0;
+        }
+
+        .chat-header {
+            background: var(--card);
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #1e293b;
+            position: relative;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* قائمة التلت نقط */
+        .chat-menu-container {
+            position: relative;
+        }
+        
+        .settings-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--card);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: 1px solid #334155;
+            position: relative;
+        }
+        
+        .support-red-dot {
+            position: absolute;
+            top: -3px;
+            right: -3px;
+            width: 12px;
+            height: 12px;
+            background: var(--danger);
+            border-radius: 50%;
+            display: none;
+            border: 2px solid var(--card);
+            z-index: 10;
+        }
+        
+        .chat-dropdown {
+            position: absolute;
+            top: 50px;
+            left: 0;
+            background: var(--card);
+            border-radius: 15px;
+            padding: 10px;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 180px;
+            z-index: 1000;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .chat-dropdown button {
+            background: none;
+            border: none;
+            color: var(--text);
+            padding: 10px 15px;
+            text-align: right;
+            cursor: pointer;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            font-size: 0.9rem;
+        }
+        
+        .chat-dropdown button:hover {
+            background: #1e293b;
+        }
+
+        /* شاشة الدعم - خلفية مختلفة */
+        .support-screen-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 0;
+            background: linear-gradient(135deg, var(--support-bg-start) 0%, var(--support-bg-end) 100%);
+        }
+
+        .support-header {
+            background: rgba(139, 92, 246, 0.3);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(139, 92, 246, 0.5);
+        }
+
+        .support-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .support-input-area {
+            background: rgba(15, 23, 42, 0.9);
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        .support-input-area input {
+            flex: 1;
+            padding: 12px;
+            background: #1e293b;
+            border: none;
+            border-radius: 15px;
+            color: white;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 20px;
+        }
+
+        .message.sent {
+            background: var(--primary);
+            align-self: flex-end;
+        }
+
+        .message.received {
+            background: var(--card);
+            align-self: flex-start;
+            border: 1px solid #334155;
+        }
+
+        .message.system {
+            background: #475569;
+            align-self: center;
+            text-align: center;
+            max-width: 90%;
+            font-size: 0.8rem;
+        }
+
+        /* اسم المرسل مع دائرة ملونة */
+        .message-sender {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .sender-circle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--primary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: white;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        
+        .sender-circle:hover {
+            transform: scale(1.1);
+        }
+
+        .chat-input-area {
+            background: var(--card);
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid #1e293b;
+        }
+
+        .chat-input-area input {
+            flex: 1;
+            padding: 12px;
+            background: #1e293b;
+            border: none;
+            border-radius: 15px;
+            color: var(--text);
+        }
+
+        .chat-input-area button {
+            width: auto;
+            margin: 0;
+            padding: 12px 20px;
+        }
+
+        /* أزرار الشات */
+        .chat-buttons {
+            display: flex;
+            gap: 10px;
+            padding: 10px;
+            background: var(--card);
+            border-bottom: 1px solid #1e293b;
+        }
+
+        .chat-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: transform 0.1s;
+        }
+        
+        .chat-btn:active {
+            transform: scale(0.97);
+        }
+
+        .chat-btn.pickup { background: #f59e0b; color: white; }
+        .chat-btn.delivery { background: #10b981; color: white; }
+        .chat-btn.details { background: #8b5cf6; color: white; }
+
+        /* تفاصيل الخطوات */
+        .steps-container {
+            padding: 20px;
+        }
+
+        .step-card {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-right: 4px solid var(--primary);
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #334155;
+        }
+
+        .detail-label { color: #94a3b8; }
+        .detail-value { font-weight: bold; }
+
+        .step-action-btn {
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            transition: transform 0.1s;
+        }
+        
+        .step-action-btn:active {
+            transform: scale(0.97);
+        }
+
+        .step-action-btn.receive { background: var(--success); color: white; }
+        .step-action-btn.deliver { background: var(--warning); color: white; }
+        .step-action-btn.collect { background: var(--primary); color: white; }
+        .step-action-btn.rate { background: #f59e0b; color: white; }
+
+        /* زر الإعدادات - في صفحة الملف الشخصي فقط */
+        .profile-settings-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: var(--card);
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: 1px solid #334155;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+            z-index: 100;
+        }
+        
+        .profile-settings-btn:active {
+            transform: scale(0.9);
+        }
+        
+        .profile-settings-btn i {
+            font-size: 1.3rem;
+            color: var(--primary);
+        }
+
+        /* القائمة المنسدلة للملف الشخصي */
+        .profile-dropdown {
+            position: absolute;
+            top: 70px;
+            left: 20px;
+            background: var(--card);
+            border-radius: 15px;
+            padding: 10px;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 200px;
+            z-index: 1000;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .profile-dropdown button {
+            background: none;
+            border: none;
+            color: var(--text);
+            padding: 10px 15px;
+            text-align: right;
+            cursor: pointer;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        
+        .profile-dropdown button:active {
+            transform: scale(0.98);
+        }
+
+        .profile-dropdown button:hover {
+            background: #1e293b;
+        }
+
+        .profile-dropdown .danger { color: var(--danger); }
+        .profile-dropdown .success { color: var(--success); }
+
+        /* الإدخالات */
+        input, textarea {
+            width: 100%;
+            padding: 14px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 15px;
+            color: var(--text);
+            margin-bottom: 15px;
+            outline: none;
+        }
+
+        /* الإشعارات */
+        .toast-notification {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background: #1e293b;
+            padding: 12px 20px;
+            border-radius: 12px;
+            border-right: 4px solid var(--primary);
+            z-index: 40000;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* الخط الأبيض */
+        .white-line {
+            height: 2px;
+            background: var(--text);
+            margin: 15px 0;
+            opacity: 0.3;
+        }
+
+        /* الملف الشخصي */
+        .profile-container {
+            position: relative;
+            background: var(--card);
+            padding: 30px;
+            border-radius: 30px;
+            margin-top: 50px;
+        }
+        
+        .profile-right {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .profile-right h2 {
+            margin-bottom: 5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .profile-right p {
+            color: #94a3b8;
+            margin-bottom: 5px;
+        }
+        
+        .rating-stars {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--card);
+            padding: 5px 10px;
+            border-radius: 20px;
+            cursor: pointer;
+            border: 1px solid #334155;
+        }
+        
+        .rating-stars i {
+            color: #fbbf24;
+            font-size: 0.8rem;
+        }
+        
+        .profile-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        .profile-stat {
+            text-align: center;
+            cursor: pointer;
+        }
+        
+        .profile-stat .number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+        
+        /* الشارات */
+        .badge-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .badge-silver {
+            background: linear-gradient(135deg, #94a3b8, #64748b);
+            color: #1e293b;
+        }
+        
+        .badge-gold {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: #78350f;
+        }
+        
+        .badge-bronze {
+            background: linear-gradient(135deg, #cd7f32, #b87333);
+            color: #fff;
+        }
+        
+        .achievement-card {
+            background: linear-gradient(135deg, var(--card), #1e293b);
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 15px;
+            border: 1px solid var(--primary);
+        }
+        
+        .achievement-locked {
+            opacity: 0.5;
+            filter: grayscale(0.5);
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: #1e293b;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--success));
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        
+        /* مهمات الأدمن */
+        .admin-task-card {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-right: 4px solid var(--admin);
+        }
+        
+        .user-task-card {
+            background: var(--card);
+            border-radius: 20px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-right: 4px solid var(--success);
+        }
+
+        /* الصور الافتراضية للملف الشخصي */
+        .avatar-option {
+            display: inline-block;
+            width: 60px;
+            height: 60px;
+            border-radius: 20px;
+            margin: 8px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            background-size: cover;
+        }
+        
+        .avatar-option:active {
+            transform: scale(0.9);
+        }
+
+        /* الطلبات المكتملة والأرشيف */
+        .archive-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .archive-btn {
+            flex: 1;
+            padding: 10px;
+            background: var(--card);
+            border: 1px solid var(--primary);
+            border-radius: 15px;
+            color: var(--text);
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .archive-btn:active {
+            transform: scale(0.97);
+        }
+        
+        .archive-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* نافذة منبثقة */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 30000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: var(--card);
+            border-radius: 30px;
+            padding: 30px;
+            width: 85%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid var(--primary);
+            animation: fadeInUp 0.2s ease;
+        }
+
+        .stars {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .star {
+            font-size: 2.5rem;
+            cursor: pointer;
+            color: #475569;
+            transition: transform 0.1s;
+        }
+        
+        .star:active {
+            transform: scale(1.2);
+        }
+
+        .star.active {
+            color: #fbbf24;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: #f59e0b;
+        }
+        
+        .empty-state .center-btn {
+            margin-top: 20px;
+            display: inline-block;
+            background: var(--primary);
+            padding: 12px 30px;
+            border-radius: 30px;
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .loading-spinner {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 20px;
+            z-index: 50000;
+            display: none;
+        }
+
+        .profile-img {
+            width: 80px;
+            height: 80px;
+            border-radius: 25px;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            cursor: pointer;
+            overflow: hidden;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        }
+
+        .profile-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .ad-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.98);
+            z-index: 20000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .ad-content {
+            background: var(--card);
+            border-radius: 30px;
+            padding: 30px;
+            text-align: center;
+            width: 85%;
+        }
+
+        .ad-timer {
+            font-size: 4rem;
+            color: var(--primary);
+            margin: 20px 0;
+        }
+
+        .skip-btn {
+            background: #ef4444;
+            padding: 12px 40px;
+            border-radius: 50px;
+            border: none;
+            color: white;
+            cursor: pointer;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .skip-btn.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .distance-badge {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+        
+        .price-highlight {
+            color: var(--success);
+            font-weight: bold;
+        }
+        
+        .clickable-image {
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        
+        .clickable-image:hover {
+            transform: scale(1.02);
+        }
+        
+        .image-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 40000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .image-modal img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 20px;
+        }
+        
+        .voice-btn {
+            background: var(--danger);
+            border: none;
+            color: white;
+            width: 50px;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        
+        .voice-btn.recording {
+            animation: pulse 1s infinite;
+            background: #dc2626;
+        }
+        
+        .admin-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .admin-action-btn {
+            flex: 1;
+            padding: 10px;
+            background: var(--card);
+            border: 1px solid var(--admin);
+            border-radius: 12px;
+            color: var(--text);
+            cursor: pointer;
+            text-align: center;
+            transition: transform 0.1s;
+        }
+        
+        .admin-action-btn:active {
+            transform: scale(0.97);
+        }
+        
+        .admin-action-btn.danger {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+        
+        .support-request-card {
+            background: var(--card);
+            padding: 15px;
+            border-radius: 20px;
+            margin-bottom: 15px;
+            border-right: 4px solid var(--warning);
+        }
+        
+        .support-request-card .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .copy-btn {
+            background: var(--success);
+            border: none;
+            padding: 5px 10px;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        
+        .phone-number {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: #1e293b;
+            padding: 8px 15px;
+            border-radius: 30px;
+            margin: 10px 0;
+        }
+        
+        .rating-item {
+            background: #1e293b;
+            padding: 12px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .rating-stars-small {
+            color: #fbbf24;
+            font-size: 0.8rem;
+        }
+        
+        .remaining-time {
+            background: var(--success);
+            padding: 8px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+        
+        .review-option {
+            background: #1e293b;
+            padding: 12px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.2s;
+        }
+        
+        .review-option:active {
+            transform: scale(0.98);
+        }
+        
+        .payment-method {
+            background: #1e293b;
+            padding: 12px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            text-align: center;
+        }
+        
+        .payment-method.selected {
+            background: var(--primary);
+        }
+
+        /* أزرار الدعم */
+        .support-control-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .support-control-btn {
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .support-control-btn.close {
+            background: var(--danger);
+            color: white;
+        }
+
+        .support-control-btn.enter {
+            background: var(--success);
+            color: white;
+        }
+
+        .support-control-btn.exit {
+            background: var(--warning);
+            color: white;
+        }
+
+        .support-badge {
+            background: var(--admin);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+        }
+        
+        /* تنسيق عنوان الصفحة */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            margin-top: 10px;
+        }
+        
+        .page-header h2 {
+            margin: 0;
+        }
+        
+        /* زر الاشتراك بعد القبول */
+        .subscription-active {
+            background: var(--success);
+            color: white;
+        }
+    </style>
+</head>
+<body class="dark-mode">
+
+<div class="loading-spinner" id="loading-spinner">
+    <i class="fas fa-spinner fa-pulse fa-2x"></i>
+</div>
+
+<!-- شاشة تسجيل الدخول -->
+<div id="login-screen" class="login-container">
+    <div class="login-card">
+        <div class="logo">
+            <i class="fas fa-map-marker-alt" style="font-size: 3rem; color: var(--primary);"></i>
+            <h1><span>سبوبة</span><span> إسكندرية</span></h1>
+            <p>اكتب رقمك</p>
+        </div>
+        <input type="text" id="loginPhone" placeholder="رقم الهاتف">
+        <div class="error-msg" id="login-error" style="color: #ef4444; display: none;"></div>
+        <button class="btn-main" onclick="checkAndProceed()">متابعة</button>
+    </div>
+</div>
+
+<!-- نافذة رمز الأدمن -->
+<div id="admin-code-modal" class="modal">
+    <div class="modal-content">
+        <h3>🔐 رمز الدخول للأدمن</h3>
+        <input type="password" id="admin-code-input" placeholder="أدخل الرمز">
+        <button class="btn-main" onclick="verifyAdminCode()">تأكيد</button>
+        <button class="btn-main" style="background: #475569; margin-top: 10px;" onclick="closeAdminCodeModal()">إلغاء</button>
+    </div>
+</div>
+
+<!-- شاشة إكمال البيانات -->
+<div id="complete-profile-screen" class="login-container" style="display:none;">
+    <div class="login-card">
+        <div class="logo">
+            <i class="fas fa-user-plus" style="font-size: 3rem; color: var(--primary);"></i>
+            <h1>أكمل بياناتك</h1>
+        </div>
+        <input type="text" id="fullName" placeholder="الاسم بالكامل">
+        <button class="btn-main" onclick="completeRegistration()" style="background: #10b981;">دخول</button>
+    </div>
+</div>
+
+<!-- شاشة الرئيسية -->
+<section id="home" class="view">
+    <div class="page-header">
+        <h2>السبوبات ⚓</h2>
+        <button class="btn-main" style="width: auto; padding: 10px 20px; margin: 0;" onclick="showAdBeforeCreate()">+ جديد</button>
+    </div>
+    
+    <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterOrders('all')">الكل</button>
+        <button class="filter-btn" onclick="filterOrders('nearest')">الأقرب لي</button>
+        <button class="filter-btn" onclick="filterOrders('lowest')">الأقل سعراً</button>
+        <button class="filter-btn" onclick="filterOrders('highest')">الأعلى سعراً</button>
+    </div>
+    
+    <div id="orders-list"></div>
+</section>
+
+<!-- شاشة طلباتي -->
+<section id="my-orders" class="view">
+    <div class="page-header">
+        <h2>طلباتي 📦</h2>
+        <button class="btn-main" style="width: auto; padding: 8px 15px; background: var(--warning); margin: 0;" onclick="showFollowOrders()">
+            متابعة طلباتي 👁️
+        </button>
+    </div>
+    <div id="my-orders-list"></div>
+</section>
+
+<!-- شاشة متابعة الطلبات -->
+<section id="follow-orders-screen" class="view">
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+        <button onclick="showView('my-orders')" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+        <h2>متابعة الطلبات</h2>
+    </div>
+    
+    <div class="archive-buttons">
+        <div class="archive-btn active" onclick="showFollowOrdersActive()">📋 النشطة</div>
+        <div class="archive-btn" onclick="showFollowOrdersArchive()">📦 الأرشيف</div>
+    </div>
+    
+    <div id="follow-orders-list"></div>
+</section>
+
+<!-- شاشة مهمات الأدمن -->
+<section id="admin-tasks-screen" class="view">
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+        <button onclick="showView('admin-screen')" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+        <h2>مهمات الأدمن 👑</h2>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+        <h3>إضافة مهمة جديدة</h3>
+        <input type="text" id="new-task-name" placeholder="اسم المهمة (مثال: إكمال 10 طلبات)">
+        <input type="number" id="new-task-target" placeholder="الهدف (عدد الطلبات)">
+        <button class="btn-main" onclick="addAdminTask()" style="background: var(--success);">➕ إضافة مهمة</button>
+    </div>
+    
+    <h3>المهمات المتاحة</h3>
+    <div id="admin-tasks-list"></div>
+    
+    <div class="white-line"></div>
+    
+    <h3>تقدم المستخدمين في المهمات</h3>
+    <div id="users-tasks-progress"></div>
+</section>
+
+<!-- شاشة المهمات الشخصية للمستخدم -->
+<section id="my-tasks-screen" class="view">
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+        <button onclick="goBackFromTasks()" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+        <h2>مهماتي 🏆</h2>
+    </div>
+    <div id="my-tasks-list"></div>
+</section>
+
+<!-- شاشة الإنجازات -->
+<section id="achievements-screen" class="view">
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+        <button onclick="goBackFromAchievements()" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+        <h2>إنجازاتي 🏆</h2>
+    </div>
+    <div id="achievements-list"></div>
+</section>
+
+<!-- شاشة التقييمات -->
+<section id="all-ratings-screen" class="view">
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+        <button onclick="goBackFromAllRatings()" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+        <h2>كل التقييمات ⭐</h2>
+    </div>
+    <div id="all-ratings-list"></div>
+</section>
+
+<!-- شاشة الخريطة -->
+<section id="create-map" class="view" style="padding: 0;">
+    <div id="map" style="height: 100%;"></div>
+    <div class="search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="search-input" placeholder="ابحث عن مكان في اسكندرية...">
+    </div>
+    <div class="search-results" id="search-results"></div>
+    <div class="center-marker"><i class="fas fa-map-marker-alt"></i></div>
+    <div class="map-overlay">
+        <div class="loc-step">
+            <button id="pick-btn" class="step-btn active">📍 الاستلام</button>
+            <button id="drop-btn" class="step-btn">🏁 التسليم</button>
+        </div>
+        <p id="loc-display" style="font-size: 0.7rem; text-align: center;">حرك الخريطة ثم اضغط تثبيت</p>
+        <button class="btn-main" onclick="confirmLocation()">تثبيت الموقع</button>
+        <button id="next-to-details" class="btn-main" style="background: #10b981; display: none;" onclick="goToDetails()">التالي</button>
+    </div>
+</section>
+
+<!-- شاشة تفاصيل الطلب -->
+<section id="create-details" class="view">
+    <div class="page-header">
+        <h2>تفاصيل الطلب</h2>
+    </div>
+    <input type="text" id="order-title" placeholder="عنوان الطلب">
+    <textarea id="order-desc" rows="3" placeholder="وصف الطلب..."></textarea>
+    <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 20px; margin-bottom: 20px;">
+        <p>المسافة: <strong id="distance-value">0</strong> كم</p>
+        <p>سعر الكيلومتر: 5 جنيه</p>
+        <h3 style="color: var(--primary);">السعر المقترح: <span id="min-price">0</span> EGP</h3>
+    </div>
+    <input type="number" id="order-price" placeholder="السعر النهائي للطلب">
+    <button class="btn-main" onclick="finishOrder()">نشر السبوبة</button>
+</section>
+
+<!-- شاشة الشات العادية -->
+<section id="chat-screen" class="view" style="padding: 0;">
+    <div class="chat-screen-container">
+        <div class="chat-header">
+            <button onclick="goBackFromChat()" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+            <h3 id="chat-order-title"></h3>
+            <div class="chat-menu-container">
+                <div class="settings-icon" id="settings-icon-btn" onclick="toggleChatDropdown()">
+                    <i class="fas fa-ellipsis-v"></i>
+                    <div class="support-red-dot" id="support-red-dot"></div>
+                </div>
+                <div class="chat-dropdown" id="chat-dropdown">
+                    <button onclick="callUser()"><i class="fas fa-phone"></i> اتصال</button>
+                    <button onclick="showSupportRequestModal()"><i class="fas fa-headset"></i> طلب دعم</button>
+                    <button id="open-support-chat-btn" onclick="openExistingSupportChat()" style="display: none;"><i class="fas fa-comment-dots"></i> شات الدعم</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-buttons">
+            <button class="chat-btn pickup" onclick="openPickupLocation()">
+                <i class="fas fa-map-marker-alt"></i> مكان الاستلام
+            </button>
+            <button class="chat-btn delivery" onclick="openDeliveryLocation()">
+                <i class="fas fa-flag-checkered"></i> مكان التسليم
+            </button>
+            <button class="chat-btn details" onclick="openOrderSteps()">
+                <i class="fas fa-clipboard-list"></i> التفاصيل
+            </button>
+        </div>
+        
+        <div class="chat-messages" id="chat-messages"></div>
+        
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="اكتب رسالتك...">
+            <button class="voice-btn" id="voice-btn" onmousedown="startVoiceRecording()" onmouseup="stopVoiceRecording()" ontouchstart="startVoiceRecording()" ontouchend="stopVoiceRecording()">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="btn-main" style="width: auto;" onclick="sendMessage()">إرسال</button>
+        </div>
+    </div>
+</section>
+
+<!-- شاشة الخطوات -->
+<section id="steps-screen" class="view" style="padding: 0;">
+    <div class="chat-screen-container">
+        <div class="chat-header">
+            <button onclick="goBackFromSteps()" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+            <h3>تفاصيل الطلب والخطوات</h3>
+        </div>
+        <div class="steps-container" id="steps-container"></div>
+    </div>
+</section>
+
+<!-- شاشة الدعم - بخلفية مختلفة وأزرار تحكم -->
+<section id="support-screen" class="view" style="padding: 0;">
+    <div class="support-screen-container">
+        <div class="support-header">
+            <button onclick="exitSupportChat()" style="background: none; border: none; color: var(--admin); font-size: 1.2rem;">← خروج</button>
+            <h3>الدعم الفني 🎧 <span class="support-badge">محادثة منفصلة</span></h3>
+            <div class="support-control-buttons">
+                <button id="support-close-btn" class="support-control-btn close" onclick="closeSupportRequest()">
+                    <i class="fas fa-times"></i> إغلاق الطلب
+                </button>
+            </div>
+        </div>
+        <div class="support-messages" id="support-messages"></div>
+        <div class="support-input-area">
+            <input type="text" id="support-input" placeholder="اكتب رسالتك للدعم...">
+            <button class="btn-main" style="width: auto; background: var(--admin);" onclick="sendSupportMessage()">إرسال</button>
+        </div>
+    </div>
+</section>
+
+<!-- شاشة الإدارة -->
+<section id="admin-screen" class="view">
+    <h2 style="color: var(--admin); margin-bottom: 20px;">لوحة التحكم 👑</h2>
+    
+    <div class="admin-actions" id="admin-actions-container">
+        <div class="admin-action-btn" onclick="showAllOrdersList()">📋 جميع الطلبات</div>
+        <div class="admin-action-btn" onclick="showAllReviews()">💬 آراء المستخدمين</div>
+        <div class="admin-action-btn" onclick="showSupportRequests()">🎧 طلبات الدعم</div>
+        <div class="admin-action-btn" onclick="showSubscriptionRequests()">📋 طلبات الاشتراك</div>
+        <div class="admin-action-btn" onclick="showAdminTasks()">🎯 مهمات الأدمن</div>
+        <div class="admin-action-btn" onclick="showCreateAdminModal()">➕ إضافة أدمن جديد</div>
+        <div class="admin-action-btn" onclick="showAdminList()">👥 قائمة الأدمن</div>
+        <div id="danger-actions" style="display: none;">
+            <div class="admin-action-btn danger" onclick="confirmClearChats()">🗑 مسح الشاتات</div>
+            <div class="admin-action-btn danger" onclick="confirmClearOrders()">🗑 مسح الطلبات</div>
+        </div>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+        <h3>حظر رقم 📵</h3>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="block-phone" placeholder="رقم الهاتف" style="margin-bottom: 0;">
+            <button class="btn-main" style="width: auto; background: var(--danger);" onclick="blockNumber()">حظر</button>
+        </div>
+        <div id="blocked-list" style="margin-top: 10px; font-size: 0.8rem;"></div>
+    </div>
+    
+    <div style="background: var(--card); padding: 15px; border-radius: 20px; margin-bottom: 20px;">
+        <h3>طلبات الاشتراك 📋</h3>
+        <div id="subscription-requests-list"></div>
+    </div>
+</section>
+
+<!-- شاشة جميع الطلبات للإدارة -->
+<section id="all-orders-screen" class="view">
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+        <button onclick="showView('admin-screen')" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+        <h2>جميع الطلبات</h2>
+    </div>
+    <input type="text" id="admin-order-search" placeholder="بحث..." onkeyup="filterAdminOrders()">
+    <div id="admin-all-orders-list"></div>
+</section>
+
+<!-- شاشة آراء المستخدمين -->
+<section id="reviews-screen" class="view">
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+        <button onclick="showView('admin-screen')" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+        <h2>آراء المستخدمين 💬</h2>
+    </div>
+    <div id="reviews-list"></div>
+</section>
+
+<!-- شاشة طلبات الدعم للإدارة -->
+<section id="support-requests-screen" class="view">
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+        <button onclick="showView('admin-screen')" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+        <h2>طلبات الدعم 🎧</h2>
+    </div>
+    <div id="support-requests-list"></div>
+</section>
+
+<!-- شاشة طلبات الاشتراك للإدارة -->
+<section id="subscription-requests-admin-screen" class="view">
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+        <button onclick="showView('admin-screen')" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+        <h2>طلبات الاشتراك 📋</h2>
+    </div>
+    <div id="subscription-requests-admin-list"></div>
+</section>
+
+<!-- شاشة الملف الشخصي للمستخدم -->
+<section id="user-profile-screen" class="view">
+    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+        <button onclick="goBackFromUserProfile()" style="background: none; border: none; color: var(--primary); font-size: 1.2rem;">← رجوع</button>
+        <h2>الملف الشخصي</h2>
+    </div>
+    <div id="user-profile-content"></div>
+</section>
+
+<!-- شاشة الملف الشخصي -->
+<section id="profile" class="view">
+    <div class="profile-container">
+        <!-- زر الترس - في صفحة الملف الشخصي فقط -->
+        <div class="profile-settings-btn" id="profile-settings-btn" onclick="toggleProfileDropdown()">
+            <i class="fas fa-cog"></i>
+        </div>
+        <div class="profile-dropdown" id="profile-dropdown">
+            <button id="dark-mode-toggle" onclick="toggleDarkMode()"><i class="fas fa-moon"></i> <span id="dark-mode-text">الوضع الليلي</span></button>
+            <button id="subscription-status-btn" onclick="showSubscriptionStatus()"><i class="fas fa-crown"></i> <span id="subscription-status-text">الاشتراك</span></button>
+            <button onclick="showAppReviewModal()"><i class="fas fa-star"></i> رأيك عن التطبيق</button>
+            <button id="admin-panel-option" onclick="showView('admin-screen')" style="display: none;"><i class="fas fa-crown"></i> لوحة التحكم</button>
+            <button onclick="logout()" class="danger"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</button>
+        </div>
+        
+        <div class="profile-img" id="profile-img" onclick="showAvatarOptions()">
+            <i class="fas fa-camera"></i>
+        </div>
+        <input type="file" id="profile-image-input" accept="image/*" style="display: none;" onchange="updateProfileImage(this)">
+        
+        <div class="profile-right">
+            <h2 id="profile-name"></h2>
+            <div id="profile-badge"></div>
+            <p>
+                <span id="profile-phone"></span>
+            </p>
+            <div class="rating-stars" onclick="showAllUserRatings()" style="display: inline-flex; margin-top: 10px;">
+                <i class="fas fa-star"></i> <span id="profile-rating">0</span> <span style="margin-right:5px;">(تقييمي)</span>
+            </div>
+        </div>
+        
+        <div class="white-line"></div>
+        
+        <div class="profile-stats">
+            <div class="profile-stat" onclick="showMyTasks()">
+                <div class="number" id="completed-count">0</div>
+                <small>✅ مهمات مكتملة</small>
+            </div>
+            <div class="profile-stat" onclick="showAchievements()">
+                <div class="number" id="user-earnings">0</div>
+                <small>💰 إجمالي الأرباح</small>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- نافذة الصور الافتراضية -->
+<div id="avatar-modal" class="modal">
+    <div class="modal-content">
+        <h3>اختر صورتك</h3>
+        <div style="text-align: center;">
+            <div class="avatar-option" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6);" onclick="selectDefaultAvatar('grad1')"></div>
+            <div class="avatar-option" style="background: linear-gradient(135deg, #10b981, #34d399);" onclick="selectDefaultAvatar('grad2')"></div>
+            <div class="avatar-option" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);" onclick="selectDefaultAvatar('grad3')"></div>
+            <div class="avatar-option" style="background: linear-gradient(135deg, #ef4444, #f87171);" onclick="selectDefaultAvatar('grad4')"></div>
+            <div class="avatar-option" style="background: linear-gradient(135deg, #8b5cf6, #a78bfa);" onclick="selectDefaultAvatar('grad5')"></div>
+            <div class="avatar-option" style="background: #1e293b; border: 2px solid var(--primary);" onclick="uploadCustomImage()">
+                <i class="fas fa-plus" style="font-size: 2rem; color: var(--primary); line-height: 60px;"></i>
+            </div>
+        </div>
+        <button class="btn-main" style="margin-top: 20px;" onclick="closeAvatarModal()">إلغاء</button>
+    </div>
+</div>
+
+<!-- نافذة تعديل التفاصيل -->
+<div id="edit-modal" class="modal">
+    <div class="modal-content">
+        <h3>تعديل التفاصيل</h3>
+        <input type="text" id="edit-name" placeholder="الاسم الجديد">
+        <button class="btn-main" onclick="saveProfileChanges()" style="background: var(--success);">حفظ</button>
+        <button class="btn-main" style="background: #475569; margin-top: 10px;" onclick="closeEditModal()">إلغاء</button>
+    </div>
+</div>
+
+<!-- نافذة إضافة أدمن -->
+<div id="create-admin-modal" class="modal">
+    <div class="modal-content">
+        <h3>➕ إضافة أدمن جديد</h3>
+        <input type="text" id="admin-name" placeholder="اسم الأدمن">
+        <input type="text" id="admin-phone" placeholder="رقم الهاتف">
+        <button class="btn-main" onclick="createNewAdmin()" style="background: var(--success);">إنشاء</button>
+        <button class="btn-main" style="background: #475569; margin-top: 10px;" onclick="closeCreateAdminModal()">إلغاء</button>
+    </div>
+</div>
+
+<!-- نافذة قائمة الأدمن -->
+<div id="admin-list-modal" class="modal">
+    <div class="modal-content">
+        <h3>👥 قائمة الأدمن</h3>
+        <div id="admin-list-container"></div>
+        <button class="btn-main" style="background: #475569; margin-top: 10px;" onclick="closeAdminListModal()">إغلاق</button>
+    </div>
+</div>
+
+<!-- نافذة التقييم -->
+<div id="rating-modal" class="modal">
+    <div class="modal-content">
+        <h3>تقييم المستخدم</h3>
+        <p>تقييم: <strong id="rating-user-name"></strong></p>
+        <div class="stars" id="stars-container">
+            <i class="fas fa-star star" data-value="1"></i>
+            <i class="fas fa-star star" data-value="2"></i>
+            <i class="fas fa-star star" data-value="3"></i>
+            <i class="fas fa-star star" data-value="4"></i>
+            <i class="fas fa-star star" data-value="5"></i>
+        </div>
+        <textarea id="rating-comment" rows="2" placeholder="تعليق (اختياري)..."></textarea>
+        <button class="btn-main" id="submit-rating-btn" onclick="submitRating()">إرسال التقييم</button>
+        <button class="btn-main" style="background: #475569; margin-top: 10px;" onclick="closeRatingModal()">إلغاء</button>
+    </div>
+</div>
+
+<!-- نافذة تحصيل الفلوس -->
+<div id="payment-modal" class="modal">
+    <div class="modal-content">
+        <h3>تحصيل فلوس 💰</h3>
+        <p>المبلغ المستحق: <strong id="due-amount" style="color: var(--success); font-size: 1.5rem;">0</strong> EGP</p>
+        <input type="number" id="collection-amount" placeholder="المبلغ المحصل">
+        <button class="btn-main" onclick="confirmCollection()" style="background: var(--success);">تأكيد</button>
+        <button class="btn-main" style="background: #475569; margin-top: 10px;" onclick="closePaymentModal()">إلغاء</button>
+    </div>
+</div>
+
+<!-- نافذة الاشتراك -->
+<div id="subscription-modal" class="modal">
+    <div class="modal-content">
+        <h3>اشتراك شهري 📱</h3>
+        <p>اشتراك شهر بدون إعلانات - 50 جنيه</p>
+        
+        <div class="phone-number" style="justify-content: center; margin: 15px 0;">
+            <span>📞 01206224477</span>
+            <button class="copy-btn" onclick="copyPhoneNumber()">نسخ</button>
+        </div>
+        
+        <div class="payment-methods" id="payment-methods">
+            <div class="payment-method" data-method="cash">💵 كاش</div>
+        </div>
+        
+        <input type="text" id="transfer-number" placeholder="رقم التحويل">
+        <input type="file" id="transfer-image" accept="image/*">
+        <div id="transfer-preview" style="margin: 10px 0;"></div>
+        
+        <button class="btn-main" onclick="submitSubscriptionRequest()" style="background: var(--success);">إرسال طلب الاشتراك</button>
+        <button class="btn-main" style="background: #475569; margin-top: 10px;" onclick="closeSubscriptionModal()">إلغاء</button>
+    </div>
+</div>
+
+<!-- نافذة عرض حالة الاشتراك -->
+<div id="subscription-status-modal" class="modal">
+    <div class="modal-content">
+        <h3>حالة الاشتراك</h3>
+        <div id="subscription-status-content"></div>
+        <button class="btn-main" onclick="closeSubscriptionStatusModal()">إغلاق</button>
+    </div>
+</div>
+
+<!-- نافذة رأيك عن التطبيق -->
+<div id="review-modal" class="modal">
+    <div class="modal-content">
+        <h3>رأيك عن التطبيق 📝</h3>
+        <div class="review-options">
+            <div class="review-option" onclick="selectReviewType('اقتراح')">💡 اقتراح</div>
+            <div class="review-option" onclick="selectReviewType('شكوى')">⚠️ شكوى</div>
+            <div class="review-option" onclick="selectReviewType('مدح')">🌟 مدح</div>
+            <div class="review-option" onclick="selectReviewType('مشكلة تقنية')">🔧 مشكلة تقنية</div>
+        </div>
+        <textarea id="review-text" rows="3" placeholder="اكتب تفاصيل رأيك..."></textarea>
+        <button class="btn-main" onclick="sendReview()" style="background: var(--primary); margin-top: 10px;">إرسال</button>
+        <button class="btn-main" style="background: #475569; margin-top: 10px;" onclick="closeReviewModal()">إلغاء</button>
+    </div>
+</div>
+
+<!-- نافذة الموافقة على الساعي -->
+<div id="approval-modal" class="modal">
+    <div class="modal-content">
+        <h3>طلب توصيل جديد</h3>
+        <div id="approval-content"></div>
+        <div class="approval-buttons">
+            <button class="approve-btn" onclick="confirmTakeOrder()">✅ قبول</button>
+            <button class="reject-btn" onclick="rejectTakeOrder()">❌ رفض</button>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة عرض الصورة -->
+<div id="image-view-modal" class="image-modal" onclick="closeImageView()">
+    <img id="view-image" src="">
+</div>
+
+<!-- إعلان -->
+<div id="ad-overlay" class="ad-overlay">
+    <div class="ad-content">
+        <i class="fas fa-ad" style="font-size: 3rem; color: var(--primary);"></i>
+        <h2>إعلان</h2>
+        <div class="ad-timer" id="ad-timer">5</div>
+        <button class="skip-btn" id="skip-ad" onclick="skipAd()">تخطي</button>
+    </div>
+</div>
+
+<nav class="bottom-nav" id="bottom-nav">
+    <div class="nav-item" onclick="showView('home')">
+        <i class="fas fa-home"></i><span>الرئيسية</span>
+    </div>
+    <div class="nav-item" onclick="showView('my-orders')">
+        <i class="fas fa-list-ul"></i><span>طلباتي</span>
+    </div>
+    <div class="nav-item" onclick="showView('my-tasks-screen')">
+        <i class="fas fa-tasks"></i><span>مهماتي</span>
+    </div>
+    <div class="nav-item" onclick="showView('profile')">
+        <i class="fas fa-user"></i><span>حسابي</span>
+    </div>
+</nav>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // Firebase Config
+    const firebaseConfig = {
+        apiKey: "AIzaSyBvWtUweJl9vLtRZ2PxRDZp_xfSfWlMDXE",
+        authDomain: "sboba-195b0.firebaseapp.com",
+        projectId: "sboba-195b0",
+        storageBucket: "sboba-195b0.firebasestorage.app",
+        messagingSenderId: "833502155625",
+        appId: "1:833502155625:web:0f0d6b6fef0a1fc83b63f8"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    
+    // متغيرات عامة
+    let map, mapMode = 'pickup';
+    let pickupCoords = null, dropCoords = null;
+    let allOrders = [];
+    let currentUser = null;
+    let myTakenOrders = [];
+    let currentOrder = null;
+    let isAdmin = false;
+    let isMainAdmin = false;
+    let noAds = false;
+    let currentFilter = 'all';
+    let userLocation = null;
+    let userMarker = null;
+    let pickupMarker = null, dropMarker = null;
+    let messages = {};
+    let ratings = {};
+    let earnings = {};
+    let selectedRating = 0;
+    let ratingForUser = null;
+    let stepsOrder = null;
+    let chatBackScreen = 'my-orders';
+    let adCallback = null, adInterval = null;
+    let selectedPaymentMethod = null;
+    let currentReviewType = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let showArchive = false;
+    let blockedNumbers = [];
+    let adminList = [];
+    let pendingTakeOrder = null;
+    let currentLanguage = 'ar';
+    let pendingApprovalOrder = null;
+    let previousCompletedCount = 0;
+    let adminTasks = [];
+    
+    // متغيرات الدعم المنفصل
+    let currentSupportRequest = null;
+    let supportMessagesRef = null;
+    let hasActiveSupport = false;
+    let supportChatId = null;
+    let unreadSupportMessages = 0;
+    let supportRedDotVisible = false;
+    
+    const PRICE_PER_KM = 5;
+    const CONFIRM_CODE = "11994234";
+    const DEFAULT_AVATARS = {
+        grad1: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+        grad2: 'linear-gradient(135deg, #10b981, #34d399)',
+        grad3: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+        grad4: 'linear-gradient(135deg, #ef4444, #f87171)',
+        grad5: 'linear-gradient(135deg, #8b5cf6, #a78bfa)'
+    };
+    
+    // دالة إشعارات
+    function showToast(msg, type = 'info') {
+        let toast = document.createElement('div');
+        toast.className = 'toast-notification';
+        toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-info-circle'}"></i> ${msg}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    function showLoading(show) {
+        document.getElementById('loading-spinner').style.display = show ? 'flex' : 'none';
+    }
+    
+    function copyPhoneNumber() {
+        navigator.clipboard.writeText("01206224477");
+        showToast("تم نسخ الرقم!", "success");
+    }
+    
+    // حساب المسافة
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+    
+    function calculatePrice(distance) {
+        return Math.round(distance * PRICE_PER_KM);
+    }
+    
+    // حساب الشارة حسب عدد المهمات المكتملة
+    function getBadgeInfo(completedCount) {
+        if (completedCount >= 25) {
+            return { icon: '🏆', name: 'الماستر', class: 'badge-gold', text: 'ماستر 🏆' };
+        } else if (completedCount >= 10) {
+            return { icon: '🥈', name: 'الفضي', class: 'badge-silver', text: 'فضي 🥈' };
+        } else {
+            return { icon: '⭐', name: 'الجديد', class: 'badge-bronze', text: 'جديد ⭐' };
+        }
+    }
+    
+    function updateProfileBadge() {
+        if (isAdmin) return;
+        let completed = myTakenOrders.filter(o => o.status === 'مكتمل').length;
+        let badge = getBadgeInfo(completed);
+        const badgeContainer = document.getElementById('profile-badge');
+        if (badgeContainer) {
+            badgeContainer.innerHTML = `<span class="badge-icon ${badge.class}"><i class="fas ${badge.icon === '🏆' ? 'fa-trophy' : (badge.icon === '🥈' ? 'fa-medal' : 'fa-star')}"></i> ${badge.text}</span>`;
+        }
+        
+        // التحقق من الحصول على شارة جديدة
+        if (previousCompletedCount > 0 && completed >= 10 && previousCompletedCount < 10) {
+            showToast('🎉 مبروك! حصلت على الشارة الفضية لإكمال 10 مهمات!', 'success');
+            checkAdminTasksCompletion(completed);
+        } else if (previousCompletedCount > 0 && completed >= 25 && previousCompletedCount < 25) {
+            showToast('🏆 مبروك! حصلت على الشارة الذهبية (ماستر) لإكمال 25 مهمة!', 'success');
+            checkAdminTasksCompletion(completed);
+        }
+        previousCompletedCount = completed;
+        return completed;
+    }
+    
+    // التحقق من إكمال مهام الأدمن
+    function checkAdminTasksCompletion(completedCount) {
+        db.ref('adminTasks').once('value', s => {
+            let tasks = s.val() ? Object.values(s.val()) : [];
+            tasks.forEach(task => {
+                if (task.target <= completedCount && !task.completedBy?.includes(currentUser.uid)) {
+                    let completedBy = task.completedBy || [];
+                    completedBy.push(currentUser.uid);
+                    db.ref(`adminTasks/${task.id}/completedBy`).set(completedBy);
+                    showToast(`🎉 مبروك! أكملت مهمة "${task.name}"`, 'success');
+                }
+            });
+        });
+    }
+    
+    // عرض الإنجازات
+    function showAchievements() {
+        let completed = myTakenOrders.filter(o => o.status === 'مكتمل').length;
+        let container = document.getElementById('achievements-list');
+        
+        let silverProgress = Math.min((completed / 10) * 100, 100);
+        let goldProgress = Math.min((completed / 25) * 100, 100);
+        
+        container.innerHTML = `
+            <div class="achievement-card ${completed >= 10 ? '' : 'achievement-locked'}">
+                <i class="fas fa-medal" style="font-size: 3rem; color: #94a3b8;"></i>
+                <h3>🥈 الشارة الفضية</h3>
+                <p>أكمل 10 مهمات</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${silverProgress}%;"></div>
+                </div>
+                <small>${completed}/10 مهمة</small>
+                ${completed >= 10 ? '<p style="color: var(--success); margin-top: 5px;">✓ تم الحصول عليها!</p>' : ''}
+            </div>
+            <div class="achievement-card ${completed >= 25 ? '' : 'achievement-locked'}">
+                <i class="fas fa-trophy" style="font-size: 3rem; color: #fbbf24;"></i>
+                <h3>🏆 الشارة الذهبية (ماستر)</h3>
+                <p>أكمل 25 مهمة</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${goldProgress}%;"></div>
+                </div>
+                <small>${completed}/25 مهمة</small>
+                ${completed >= 25 ? '<p style="color: var(--success); margin-top: 5px;">✓ تم الحصول عليها!</p>' : ''}
+            </div>
+        `;
+        
+        showView('achievements-screen');
+    }
+    
+    function goBackFromAchievements() {
+        showView('profile');
+    }
+    
+    // عرض كل التقييمات
+    function showAllUserRatings() {
+        let allRatings = [];
+        Object.keys(ratings).forEach(user => {
+            if (ratings[user] && Array.isArray(ratings[user])) {
+                ratings[user].forEach(r => {
+                    allRatings.push({ ...r, userName: user });
+                });
+            } else if (ratings[user] && typeof ratings[user] === 'object') {
+                Object.values(ratings[user]).forEach(r => {
+                    allRatings.push({ ...r, userName: user });
+                });
+            }
+        });
+        allRatings.sort((a, b) => b.time - a.time);
+        
+        let container = document.getElementById('all-ratings-list');
+        if (allRatings.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p>لا توجد تقييمات بعد</p></div>';
+        } else {
+            container.innerHTML = allRatings.map(r => `
+                <div class="rating-item">
+                    <div><strong>${r.userName || 'مستخدم'}</strong> <span style="color:var(--primary);">→</span> <strong>${r.from}</strong></div>
+                    <div class="rating-stars-small">
+                        ${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}
+                    </div>
+                    <p>${r.comment || 'لا يوجد تعليق'}</p>
+                    <small>${new Date(r.time).toLocaleString()}</small>
+                </div>
+            `).join('');
+        }
+        showView('all-ratings-screen');
+    }
+    
+    function goBackFromAllRatings() {
+        showView('profile');
+    }
+    
+    // Dark Mode
+    function toggleDarkMode() {
+        const body = document.body;
+        if (body.classList.contains('dark-mode')) {
+            body.classList.remove('dark-mode');
+            body.classList.add('light-mode');
+            localStorage.setItem('theme', 'light');
+            document.getElementById('dark-mode-text').innerText = 'الوضع النهاري';
+            showToast('تم تفعيل الوضع النهاري', 'success');
+        } else {
+            body.classList.remove('light-mode');
+            body.classList.add('dark-mode');
+            localStorage.setItem('theme', 'dark');
+            document.getElementById('dark-mode-text').innerText = 'الوضع الليلي';
+            showToast('تم تفعيل الوضع الليلي', 'success');
+        }
+    }
+    
+    // صور الملف الشخصي
+    function showAvatarOptions() {
+        if (isAdmin) {
+            showToast('الأدمن لا يمكنه تغيير الصورة', 'warning');
+            return;
+        }
+        document.getElementById('avatar-modal').style.display = 'flex';
+        closeDropdowns();
+    }
+    
+    function closeAvatarModal() {
+        document.getElementById('avatar-modal').style.display = 'none';
+    }
+    
+    function selectDefaultAvatar(type) {
+        currentUser.avatarType = type;
+        currentUser.profileImage = null;
+        const gradient = DEFAULT_AVATARS[type];
+        document.getElementById('profile-img').style.background = gradient;
+        document.getElementById('profile-img').innerHTML = '<i class="fas fa-user" style="opacity:0.5;"></i>';
+        db.ref(`users/${currentUser.uid}`).update({ avatarType: type, profileImage: null });
+        showToast('تم تغيير الصورة بنجاح', 'success');
+        closeAvatarModal();
+    }
+    
+    function uploadCustomImage() {
+        document.getElementById('profile-image-input').click();
+        closeAvatarModal();
+    }
+    
+    function updateProfileImage(input) {
+        if (input.files && input.files[0]) {
+            let reader = new FileReader();
+            reader.onload = e => {
+                currentUser.profileImage = e.target.result;
+                currentUser.avatarType = null;
+                db.ref(`users/${currentUser.uid}`).update({ profileImage: e.target.result, avatarType: null });
+                document.getElementById('profile-img').style.background = '';
+                document.getElementById('profile-img').innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;border-radius:25px;">`;
+                showToast('تم تحديث الصورة', 'success');
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+    
+    // ==================== تسجيل الدخول ====================
+    async function checkAndProceed() {
+        let input = document.getElementById('loginPhone').value.trim();
+        
+        let blocked = await checkIfBlocked(input);
+        if (blocked) {
+            document.getElementById('login-error').style.display = 'block';
+            document.getElementById('login-error').innerText = 'تم حظر هذا الرقم، يرجى التواصل مع الدعم';
+            return;
+        }
+        
+        if (input === 'ادمين' || input === 'admin') {
+            document.getElementById('admin-code-modal').style.display = 'flex';
+            return;
+        }
+        
+        if (!input) {
+            document.getElementById('login-error').style.display = 'block';
+            return;
+        }
+        
+        document.getElementById('login-error').style.display = 'none';
+        showLoading(true);
+        
+        db.ref('users').orderByChild('phone').equalTo(input).once('value').then(snapshot => {
+            if (snapshot.exists()) {
+                let uid = Object.keys(snapshot.val())[0];
+                currentUser = snapshot.val()[uid];
+                currentUser.uid = uid;
+                
+                if (currentUser.isAdmin) {
+                    isAdmin = true;
+                    isMainAdmin = currentUser.isMainAdmin || false;
+                    noAds = true;
+                }
+                
+                localStorage.setItem('user', JSON.stringify({ uid: currentUser.uid, name: currentUser.name }));
+                loadUserData();
+                completeLogin();
+            } else {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('complete-profile-screen').style.display = 'flex';
+            }
+            showLoading(false);
+        });
+    }
+    
+    function checkIfBlocked(phone) {
+        return new Promise((resolve) => {
+            db.ref('blockedNumbers').once('value', s => {
+                let blocked = s.val() ? Object.values(s.val()) : [];
+                resolve(blocked.includes(phone));
+            });
+        });
+    }
+    
+    function verifyAdminCode() {
+        let code = document.getElementById('admin-code-input').value;
+        if (code === CONFIRM_CODE) {
+            closeAdminCodeModal();
+            currentUser = {
+                uid: 'admin_' + Date.now(),
+                name: 'admin',
+                phone: 'ادمين',
+                isAdmin: true,
+                isMainAdmin: true,
+                noAds: true
+            };
+            isAdmin = true;
+            isMainAdmin = true;
+            noAds = true;
+            localStorage.setItem('user', JSON.stringify({ uid: currentUser.uid, isAdmin: true, isMainAdmin: true }));
+            completeLogin();
+        } else {
+            showToast('الرمز غير صحيح!', 'error');
+        }
+    }
+    
+    function closeAdminCodeModal() {
+        document.getElementById('admin-code-modal').style.display = 'none';
+        document.getElementById('admin-code-input').value = '';
+    }
+    
+    function completeRegistration() {
+        let name = document.getElementById('fullName').value.trim();
+        
+        if (!name) {
+            showToast('يرجى كتابة الاسم', 'error');
+            return;
+        }
+        
+        showLoading(true);
+        currentUser = {
+            uid: 'user_' + Date.now(),
+            name: name,
+            phone: document.getElementById('loginPhone').value,
+            noAds: false,
+            earnings: 0,
+            subscriptionEnd: null,
+            subscriptionStatus: 'pending',
+            isAdmin: false,
+            isMainAdmin: false,
+            avatarType: 'grad1'
+        };
+        
+        db.ref(`users/${currentUser.uid}`).set(currentUser).then(() => {
+            localStorage.setItem('user', JSON.stringify({ uid: currentUser.uid, name: currentUser.name }));
+            loadUserData();
+            completeLogin();
+            showLoading(false);
+        });
+    }
+    
+    function loadUserData() {
+        if (!currentUser.isAdmin) {
+            db.ref(`users/${currentUser.uid}/takenOrders`).once('value').then(s => {
+                myTakenOrders = s.val() || [];
+                updateProfileStats();
+                updateProfileBadge();
+            });
+            if (currentUser.subscriptionEnd && currentUser.subscriptionEnd > Date.now()) {
+                currentUser.noAds = true;
+                currentUser.subscriptionStatus = 'active';
+                document.getElementById('subscription-status-text').innerHTML = '✅ مشترك';
+                document.getElementById('subscription-status-btn').classList.add('subscription-active');
+            } else if (currentUser.subscriptionStatus === 'pending') {
+                document.getElementById('subscription-status-text').innerHTML = '⏳ قيد المراجعة';
+            } else if (currentUser.noAds) {
+                noAds = true;
+                document.getElementById('subscription-status-text').innerHTML = '✅ مشترك';
+                document.getElementById('subscription-status-btn').classList.add('subscription-active');
+            } else {
+                document.getElementById('subscription-status-text').innerHTML = '📱 الاشتراك';
+            }
+            if (currentUser.profileImage) {
+                document.getElementById('profile-img').style.background = '';
+                document.getElementById('profile-img').innerHTML = `<img src="${currentUser.profileImage}" style="width:100%;height:100%;border-radius:25px;">`;
+            } else if (currentUser.avatarType && DEFAULT_AVATARS[currentUser.avatarType]) {
+                document.getElementById('profile-img').style.background = DEFAULT_AVATARS[currentUser.avatarType];
+                document.getElementById('profile-img').innerHTML = '<i class="fas fa-user" style="opacity:0.5;"></i>';
+            } else {
+                document.getElementById('profile-img').style.background = DEFAULT_AVATARS.grad1;
+                document.getElementById('profile-img').innerHTML = '<i class="fas fa-user" style="opacity:0.5;"></i>';
+            }
+        }
+        
+        // التحقق من وجود شات دعم مفتوح
+        db.ref('supportRequests').orderByChild('userId').equalTo(currentUser.uid).once('value', s => {
+            let requests = s.val() ? Object.values(s.val()) : [];
+            let activeRequest = requests.find(r => r.status === 'accepted');
+            if (activeRequest) {
+                hasActiveSupport = true;
+                supportChatId = activeRequest.chatId;
+                document.getElementById('open-support-chat-btn').style.display = 'flex';
+                document.getElementById('support-red-dot').style.display = 'block';
+                supportRedDotVisible = true;
+                checkUnreadSupportMessages();
+            }
+        });
+    }
+    
+    function checkUnreadSupportMessages() {
+        if (supportChatId) {
+            db.ref(`supportChats/${supportChatId}/messages`).on('value', s => {
+                let msgs = s.val() ? Object.values(s.val()) : [];
+                let lastMsg = msgs[msgs.length - 1];
+                if (lastMsg && lastMsg.sender !== currentUser.name && lastMsg.sender !== 'الإدارة' && lastMsg.sender !== 'النظام') {
+                    unreadSupportMessages++;
+                    if (supportRedDotVisible) {
+                        document.getElementById('support-red-dot').style.backgroundColor = 'var(--danger)';
+                        document.getElementById('support-red-dot').style.display = 'block';
+                    }
+                }
+            });
+        }
+    }
+    
+    function openExistingSupportChat() {
+        if (supportChatId) {
+            openSupportChat(supportChatId, currentUser.name);
+            unreadSupportMessages = 0;
+            document.getElementById('support-red-dot').style.display = 'none';
+            document.getElementById('chat-dropdown').style.display = 'none';
+        }
+    }
+    
+    function completeLogin() {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('complete-profile-screen').style.display = 'none';
+        document.getElementById('bottom-nav').style.display = 'flex';
+        
+        document.getElementById('profile-name').innerText = isAdmin ? 'أدمن' : currentUser.name;
+        document.getElementById('profile-phone').innerText = currentUser.phone || '';
+        
+        let userRatings = ratings[currentUser.name] || [];
+        let avg = 0;
+        if (userRatings.length > 0) {
+            avg = (userRatings.reduce((a, b) => a + (b.rating || 0), 0) / userRatings.length).toFixed(1);
+        }
+        document.getElementById('profile-rating').innerText = avg;
+        
+        // إظهار أو إخفاء خيارات القائمة حسب نوع المستخدم
+        const adminOption = document.getElementById('admin-panel-option');
+        if (adminOption) {
+            adminOption.style.display = isAdmin ? 'flex' : 'none';
+        }
+        
+        if (isAdmin) {
+            let nav = document.getElementById('bottom-nav');
+            if (!document.querySelector('.nav-item[onclick="showView(\'admin-screen\')"]')) {
+                nav.innerHTML += `<div class="nav-item" onclick="showView('admin-screen')"><i class="fas fa-crown"></i><span>إدارة</span></div>`;
+            }
+            
+            if (!isMainAdmin) {
+                document.getElementById('danger-actions').style.display = 'none';
+            } else {
+                document.getElementById('danger-actions').style.display = 'block';
+            }
+            
+            renderAdminPanel();
+            loadSubscriptionRequests();
+            loadBlockedNumbers();
+            loadAdminList();
+            loadAdminTasks();
+        }
+        
+        // استعادة وضع الشاشة
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light') {
+            document.body.classList.remove('dark-mode');
+            document.body.classList.add('light-mode');
+            document.getElementById('dark-mode-text').innerText = 'الوضع النهاري';
+        } else {
+            document.body.classList.remove('light-mode');
+            document.body.classList.add('dark-mode');
+            document.getElementById('dark-mode-text').innerText = 'الوضع الليلي';
+        }
+        
+        startLocationTracking();
+        startListeners();
+        showView('home');
+        renderOrders();
+        renderMyOrders();
+        updateProfileBadge();
+        showToast(`مرحباً ${isAdmin ? 'أدمن' : currentUser.name}`, 'success');
+    }
+    
+    function logout() {
+        localStorage.removeItem('user');
+        currentUser = null;
+        isAdmin = false;
+        location.reload();
+    }
+    
+    function updateProfileStats() {
+        if (isAdmin) return;
+        
+        let completed = myTakenOrders.filter(o => o.status === 'مكتمل').length;
+        let userEarnings = earnings[currentUser.name] || 0;
+        
+        document.getElementById('user-earnings').innerHTML = userEarnings;
+        document.getElementById('completed-count').innerHTML = completed;
+        updateProfileBadge();
+    }
+    
+    function showMyTasks() {
+        if (isAdmin) {
+            showToast('لا توجد مهمات للأدمن', 'warning');
+            return;
+        }
+        renderMyTasks();
+        showView('my-tasks-screen');
+    }
+    
+    function goBackFromTasks() {
+        showView('profile');
+    }
+    
+    function renderMyTasks() {
+        let container = document.getElementById('my-tasks-list');
+        let completed = myTakenOrders.filter(o => o.status === 'مكتمل').length;
+        
+        container.innerHTML = `
+            <div class="achievement-card">
+                <i class="fas fa-chart-line" style="font-size: 2rem; color: var(--primary);"></i>
+                <h3>📊 إحصائياتي</h3>
+                <p>إجمالي المهمات المكتملة: <strong>${completed}</strong></p>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${Math.min((completed / 25) * 100, 100)}%;"></div>
+                </div>
+                <small>${completed}/25 مهمة للوصول إلى الماستر</small>
+            </div>
+        `;
+        
+        // عرض مهام الأدمن المكتملة
+        db.ref('adminTasks').once('value', s => {
+            let tasks = s.val() ? Object.values(s.val()) : [];
+            let completedTasks = tasks.filter(t => t.completedBy?.includes(currentUser.uid));
+            if (completedTasks.length > 0) {
+                container.innerHTML += `<div class="white-line"></div><h3>🏆 المهام المكتملة</h3>`;
+                completedTasks.forEach(task => {
+                    container.innerHTML += `
+                        <div class="user-task-card">
+                            <strong>✅ ${task.name}</strong>
+                            <p>الهدف: ${task.target} مهمة</p>
+                        </div>
+                    `;
+                });
+            }
+            
+            // عرض المهام المتاحة
+            let availableTasks = tasks.filter(t => !t.completedBy?.includes(currentUser.uid));
+            if (availableTasks.length > 0) {
+                container.innerHTML += `<div class="white-line"></div><h3>🎯 المهام المتاحة</h3>`;
+                availableTasks.forEach(task => {
+                    container.innerHTML += `
+                        <div class="admin-task-card">
+                            <strong>🏆 ${task.name}</strong>
+                            <p>الهدف: أكمل ${task.target} مهمة</p>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${Math.min((completed / task.target) * 100, 100)}%;"></div>
+                            </div>
+                            <small>${completed}/${task.target} مكتمل</small>
+                        </div>
+                    `;
+                });
+            }
+        });
+    }
+    
+    // ==================== إدارة الأدمن ====================
+    function showCreateAdminModal() {
+        if (!isMainAdmin) {
+            showToast('ليس لديك صلاحية لإضافة أدمن', 'error');
+            return;
+        }
+        document.getElementById('create-admin-modal').style.display = 'flex';
+    }
+    
+    function closeCreateAdminModal() {
+        document.getElementById('create-admin-modal').style.display = 'none';
+        document.getElementById('admin-name').value = '';
+        document.getElementById('admin-phone').value = '';
+    }
+    
+    function createNewAdmin() {
+        let name = document.getElementById('admin-name').value.trim();
+        let phone = document.getElementById('admin-phone').value.trim();
+        
+        if (!name || !phone) {
+            showToast('يرجى ملء جميع البيانات', 'warning');
+            return;
+        }
+        
+        let adminData = {
+            uid: 'admin_' + Date.now(),
+            name: name,
+            phone: phone,
+            isAdmin: true,
+            isMainAdmin: false,
+            noAds: true,
+            createdAt: Date.now()
+        };
+        
+        db.ref(`users/${adminData.uid}`).set(adminData);
+        db.ref(`adminList/${adminData.uid}`).set(adminData);
+        
+        showToast('تم إضافة الأدمن بنجاح', 'success');
+        closeCreateAdminModal();
+        loadAdminList();
+    }
+    
+    function loadAdminList() {
+        db.ref('adminList').on('value', s => {
+            adminList = s.val() ? Object.values(s.val()) : [];
+        });
+    }
+    
+    function showAdminList() {
+        if (!isMainAdmin) {
+            showToast('ليس لديك صلاحية', 'error');
+            return;
+        }
+        let container = document.getElementById('admin-list-container');
+        
+        if (adminList.length === 0) {
+            container.innerHTML = '<p>لا يوجد أدمن إضافيين</p>';
+        } else {
+            container.innerHTML = adminList.map(admin => `
+                <div class="order-card" style="margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <strong>${admin.name}</strong>
+                        <button class="btn-main" style="width: auto; padding: 5px 10px; background: var(--danger);" onclick="removeAdmin('${admin.uid}')">حذف</button>
+                    </div>
+                    <p>📞 ${admin.phone}</p>
+                    <small>تمت الإضافة: ${new Date(admin.createdAt).toLocaleDateString()}</small>
+                </div>
+            `).join('');
+        }
+        
+        document.getElementById('admin-list-modal').style.display = 'flex';
+    }
+    
+    function closeAdminListModal() {
+        document.getElementById('admin-list-modal').style.display = 'none';
+    }
+    
+    function removeAdmin(uid) {
+        if (confirm('هل أنت متأكد من حذف هذا الأدمن؟')) {
+            db.ref(`users/${uid}`).remove();
+            db.ref(`adminList/${uid}`).remove();
+            showToast('تم حذف الأدمن', 'success');
+            closeAdminListModal();
+        }
+    }
+    
+    // ==================== مهمات الأدمن ====================
+    function showAdminTasks() {
+        loadAdminTasks();
+        showView('admin-tasks-screen');
+    }
+    
+    function loadAdminTasks() {
+        db.ref('adminTasks').on('value', s => {
+            adminTasks = s.val() ? Object.values(s.val()) : [];
+            renderAdminTasksList();
+            renderUsersTasksProgress();
+        });
+    }
+    
+    function renderAdminTasksList() {
+        let container = document.getElementById('admin-tasks-list');
+        if (adminTasks.length === 0) {
+            container.innerHTML = '<p>لا توجد مهمات حالياً</p>';
+            return;
+        }
+        container.innerHTML = adminTasks.map(task => `
+            <div class="admin-task-card">
+                <div style="display:flex; justify-content:space-between;">
+                    <strong>${task.name}</strong>
+                    <button class="btn-main" style="width:auto; padding:5px 10px; background:var(--danger);" onclick="deleteAdminTask('${task.id}')">🗑 حذف</button>
+                </div>
+                <p>الهدف: ${task.target} مهمة مكتملة</p>
+                <p>عدد المكملين: ${task.completedBy?.length || 0}</p>
+            </div>
+        `).join('');
+    }
+    
+    function renderUsersTasksProgress() {
+        let container = document.getElementById('users-tasks-progress');
+        db.ref('users').once('value', s => {
+            let users = s.val() ? Object.values(s.val()) : [];
+            let nonAdminUsers = users.filter(u => !u.isAdmin);
+            
+            if (nonAdminUsers.length === 0) {
+                container.innerHTML = '<p>لا يوجد مستخدمين بعد</p>';
+                return;
+            }
+            
+            container.innerHTML = nonAdminUsers.map(user => {
+                let userCompleted = 0;
+                if (user.takenOrders) {
+                    if (Array.isArray(user.takenOrders)) {
+                        userCompleted = user.takenOrders.filter(o => o && o.status === 'مكتمل').length;
+                    } else if (typeof user.takenOrders === 'object') {
+                        userCompleted = Object.values(user.takenOrders).filter(o => o && o.status === 'مكتمل').length;
+                    }
+                }
+                let completedTasks = adminTasks.filter(t => t.completedBy?.includes(user.uid)).length;
+                return `
+                    <div class="order-card">
+                        <strong>${user.name}</strong>
+                        <p>📞 ${user.phone}</p>
+                        <p>✅ مهمات مكتملة: ${userCompleted}</p>
+                        <p>🏆 مهام الأدمن المكتملة: ${completedTasks}/${adminTasks.length}</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${(userCompleted / 25) * 100}%;"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        });
+    }
+    
+    function addAdminTask() {
+        let name = document.getElementById('new-task-name').value.trim();
+        let target = parseInt(document.getElementById('new-task-target').value);
+        
+        if (!name || !target || target <= 0) {
+            showToast('يرجى إدخال اسم المهمة والهدف بشكل صحيح', 'warning');
+            return;
+        }
+        
+        let newTask = {
+            id: Date.now(),
+            name: name,
+            target: target,
+            completedBy: [],
+            createdAt: Date.now()
+        };
+        
+        db.ref(`adminTasks/${newTask.id}`).set(newTask);
+        document.getElementById('new-task-name').value = '';
+        document.getElementById('new-task-target').value = '';
+        showToast('تم إضافة المهمة بنجاح', 'success');
+    }
+    
+    function deleteAdminTask(taskId) {
+        if (confirm('هل أنت متأكد من حذف هذه المهمة؟')) {
+            db.ref(`adminTasks/${taskId}`).remove();
+            showToast('تم حذف المهمة', 'success');
+        }
+    }
+    
+    // ==================== رايك عن التطبيق ====================
+    function showAppReviewModal() {
+        currentReviewType = null;
+        document.getElementById('review-text').value = '';
+        document.getElementById('review-modal').style.display = 'flex';
+        closeDropdowns();
+    }
+    
+    function selectReviewType(type) {
+        currentReviewType = type;
+        document.querySelectorAll('.review-option').forEach(opt => {
+            opt.style.background = '#1e293b';
+        });
+        event.target.style.background = 'var(--primary)';
+    }
+    
+    function sendReview() {
+        let text = document.getElementById('review-text').value.trim();
+        if (!currentReviewType) {
+            showToast('اختر نوع الرأي أولاً', 'warning');
+            return;
+        }
+        if (!text) {
+            showToast('اكتب تفاصيل رأيك', 'warning');
+            return;
+        }
+        
+        db.ref('reviews').push({
+            user: currentUser.name,
+            type: currentReviewType,
+            review: text,
+            time: Date.now()
+        });
+        showToast('شكراً لرأيك! تم إرساله للإدارة', 'success');
+        closeReviewModal();
+    }
+    
+    function closeReviewModal() {
+        document.getElementById('review-modal').style.display = 'none';
+    }
+    
+    function showAllReviews() {
+        let container = document.getElementById('reviews-list');
+        db.ref('reviews').once('value', s => {
+            let reviews = s.val() ? Object.values(s.val()) : [];
+            if (reviews.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>لا توجد آراء بعد</p></div>';
+            } else {
+                container.innerHTML = reviews.map(r => `
+                    <div class="order-card">
+                        <div style="display:flex; justify-content:space-between;">
+                            <strong>${r.user}</strong>
+                            <span style="color:var(--warning)">${r.type}</span>
+                        </div>
+                        <p>${r.review}</p>
+                        <small>${new Date(r.time).toLocaleString()}</small>
+                    </div>
+                `).join('');
+            }
+            showView('reviews-screen');
+        });
+    }
+    
+    // ==================== الاشتراك ====================
+    function showSubscriptionStatus() {
+        let content = document.getElementById('subscription-status-content');
+        if (currentUser.subscriptionEnd && currentUser.subscriptionEnd > Date.now()) {
+            let remainingDays = Math.ceil((currentUser.subscriptionEnd - Date.now()) / (1000 * 60 * 60 * 24));
+            content.innerHTML = `
+                <div class="remaining-time" style="display:block; background:var(--success);">
+                    ✅ اشتراك فعال - متبقي ${remainingDays} يوم
+                </div>
+                <p>يمكنك الاستمتاع بالتطبيق بدون إعلانات</p>
+                <button class="btn-main" onclick="renewSubscription()" style="background:var(--warning);">تجديد الاشتراك</button>
+            `;
+        } else if (currentUser.subscriptionStatus === 'pending') {
+            content.innerHTML = `
+                <div class="remaining-time" style="display:block; background:var(--warning);">
+                    ⏳ طلب اشتراك قيد المراجعة
+                </div>
+                <p>سيتم تفعيل اشتراكك بعد موافقة الإدارة</p>
+            `;
+        } else {
+            content.innerHTML = `
+                <p>أنت غير مشترك حالياً</p>
+                <p>اشتراك شهر بدون إعلانات - 50 جنيه</p>
+                <button class="btn-main" onclick="buySubscription()">اشترك الآن</button>
+            `;
+        }
+        document.getElementById('subscription-status-modal').style.display = 'flex';
+        closeDropdowns();
+    }
+    
+    function closeSubscriptionStatusModal() {
+        document.getElementById('subscription-status-modal').style.display = 'none';
+    }
+    
+    function renewSubscription() {
+        closeSubscriptionStatusModal();
+        buySubscription();
+    }
+    
+    function buySubscription() {
+        if (isAdmin) {
+            showToast('الأدمن مشترك تلقائياً', 'warning');
+            return;
+        }
+        
+        document.getElementById('subscription-modal').style.display = 'flex';
+        closeDropdowns();
+        
+        document.querySelectorAll('.payment-method').forEach(method => {
+            method.onclick = () => {
+                document.querySelectorAll('.payment-method').forEach(m => m.classList.remove('selected'));
+                method.classList.add('selected');
+                selectedPaymentMethod = method.dataset.method;
+            };
+        });
+        
+        document.getElementById('transfer-image').onchange = (e) => {
+            if (e.target.files && e.target.files[0]) {
+                let reader = new FileReader();
+                reader.onload = ev => {
+                    document.getElementById('transfer-preview').innerHTML = `<img src="${ev.target.result}" style="max-width:100%; border-radius:10px; cursor:pointer;" class="clickable-image" onclick="showImage('${ev.target.result}')">`;
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        };
+    }
+    
+    function submitSubscriptionRequest() {
+        if (!selectedPaymentMethod) {
+            showToast('اختر وسيلة الدفع', 'warning');
+            return;
+        }
+        
+        let transferNumber = document.getElementById('transfer-number').value.trim();
+        if (!transferNumber) {
+            showToast('أدخل رقم التحويل', 'warning');
+            return;
+        }
+        
+        let file = document.getElementById('transfer-image').files[0];
+        if (!file) {
+            showToast('ارفع صورة التحويل', 'warning');
+            return;
+        }
+        
+        let reader = new FileReader();
+        reader.onload = ev => {
+            let request = {
+                id: Date.now(),
+                userId: currentUser.uid,
+                userName: currentUser.name,
+                method: selectedPaymentMethod,
+                transferNumber: transferNumber,
+                image: ev.target.result,
+                status: 'pending',
+                time: Date.now()
+            };
+            
+            db.ref(`subscriptionRequests/${request.id}`).set(request);
+            db.ref(`users/${currentUser.uid}`).update({ subscriptionStatus: 'pending' });
+            showToast('تم إرسال طلب الاشتراك، في انتظار موافقة الإدارة', 'success');
+            closeSubscriptionModal();
+        };
+        reader.readAsDataURL(file);
+    }
+    
+    function closeSubscriptionModal() {
+        document.getElementById('subscription-modal').style.display = 'none';
+        document.getElementById('transfer-number').value = '';
+        document.getElementById('transfer-image').value = '';
+        document.getElementById('transfer-preview').innerHTML = '';
+        selectedPaymentMethod = null;
+        document.querySelectorAll('.payment-method').forEach(m => m.classList.remove('selected'));
+    }
+    
+    function showSubscriptionRequests() {
+        let container = document.getElementById('subscription-requests-admin-list');
+        db.ref('subscriptionRequests').once('value', s => {
+            let requests = s.val() ? Object.values(s.val()) : [];
+            if (requests.length === 0) {
+                container.innerHTML = '<p>لا توجد طلبات اشتراك</p>';
+            } else {
+                container.innerHTML = requests.map(r => `
+                    <div class="order-card">
+                        <div style="display:flex; justify-content:space-between;">
+                            <strong>${r.userName}</strong>
+                            <span style="color:${r.status === 'pending' ? '#f59e0b' : '#10b981'}">
+                                ${r.status === 'pending' ? 'قيد المراجعة' : 'تم الموافقة'}
+                            </span>
+                        </div>
+                        <p>وسيلة الدفع: ${r.method === 'cash' ? 'كاش' : r.method}</p>
+                        <p>رقم التحويل: ${r.transferNumber}</p>
+                        ${r.image ? `<div onclick="showImage('${r.image}')" style="cursor:pointer;"><img src="${r.image}" style="width:100px; height:100px; object-fit:cover; border-radius:10px;"></div>` : ''}
+                        ${r.status === 'pending' ? `
+                            <div class="btn-group">
+                                <button class="btn-main" style="background: var(--success); margin-top:5px;" onclick="approveSubscription('${r.id}', '${r.userId}')">
+                                    ✅ قبول
+                                </button>
+                                <button class="btn-main" style="background: var(--danger); margin-top:5px;" onclick="rejectSubscription('${r.id}')">
+                                    ❌ رفض
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('');
+            }
+            showView('subscription-requests-admin-screen');
+        });
+    }
+    
+    function loadSubscriptionRequests() {
+        if (!isAdmin) return;
+        db.ref('subscriptionRequests').on('value', s => {
+            let requests = s.val() ? Object.values(s.val()) : [];
+            let container = document.getElementById('subscription-requests-list');
+            
+            if (requests.length === 0) {
+                container.innerHTML = '<p>لا توجد طلبات اشتراك</p>';
+                return;
+            }
+            
+            container.innerHTML = requests.map(r => `
+                <div class="order-card">
+                    <div style="display:flex; justify-content:space-between;">
+                        <strong>${r.userName}</strong>
+                        <span style="color:${r.status === 'pending' ? '#f59e0b' : '#10b981'}">
+                            ${r.status === 'pending' ? 'قيد المراجعة' : 'تم الموافقة'}
+                        </span>
+                    </div>
+                    <p>وسيلة الدفع: ${r.method === 'cash' ? 'كاش' : r.method}</p>
+                    <p>رقم التحويل: ${r.transferNumber}</p>
+                    ${r.status === 'pending' ? `
+                        <div class="btn-group">
+                            <button class="btn-main" style="background: var(--success); margin-top:5px;" onclick="approveSubscription('${r.id}', '${r.userId}')">
+                                ✅ قبول
+                            </button>
+                            <button class="btn-main" style="background: var(--danger); margin-top:5px;" onclick="rejectSubscription('${r.id}')">
+                                ❌ رفض
+                            </button>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        });
+    }
+    
+    function approveSubscription(requestId, userId) {
+        db.ref(`subscriptionRequests/${requestId}/status`).set('approved');
+        let oneMonthLater = Date.now() + (30 * 24 * 60 * 60 * 1000);
+        db.ref(`users/${userId}`).update({ noAds: true, subscriptionEnd: oneMonthLater, subscriptionStatus: 'active' });
+        if (currentUser.uid === userId) {
+            noAds = true;
+            currentUser.noAds = true;
+            currentUser.subscriptionEnd = oneMonthLater;
+            currentUser.subscriptionStatus = 'active';
+            document.getElementById('subscription-status-text').innerHTML = '✅ مشترك';
+            document.getElementById('subscription-status-btn').classList.add('subscription-active');
+        }
+        showToast('تم تفعيل الاشتراك للمستخدم لمدة شهر', 'success');
+    }
+    
+    function rejectSubscription(requestId) {
+        db.ref(`subscriptionRequests/${requestId}/status`).set('rejected');
+        showToast('تم رفض طلب الاشتراك', 'warning');
+    }
+    
+    // ==================== تعديل التفاصيل ====================
+    function showEditProfileModal() {
+        if (isAdmin) {
+            showToast('الأدمن لا يمكنه تعديل البيانات', 'warning');
+            return;
+        }
+        document.getElementById('edit-name').value = currentUser.name;
+        document.getElementById('edit-modal').style.display = 'flex';
+        closeDropdowns();
+    }
+    
+    function closeEditModal() {
+        document.getElementById('edit-modal').style.display = 'none';
+    }
+    
+    function saveProfileChanges() {
+        let newName = document.getElementById('edit-name').value.trim();
+        
+        if (newName) currentUser.name = newName;
+        
+        db.ref(`users/${currentUser.uid}`).update({ name: currentUser.name });
+        document.getElementById('profile-name').innerText = currentUser.name;
+        showToast('تم تحديث البيانات', 'success');
+        closeEditModal();
+    }
+    
+    // ==================== الخريطة ====================
+    function initMap() {
+        if (map) return;
+        map = L.map('map').setView([31.2001, 29.9187], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        
+        if (userLocation) {
+            userMarker = L.marker([userLocation.lat, userLocation.lng], {
+                icon: L.divIcon({ html: '<i class="fas fa-user-circle" style="font-size:24px;color:#3b82f6;"></i>', iconSize: [24, 24] })
+            }).addTo(map);
+        }
+        
+        let searchInput = document.getElementById('search-input');
+        let resultsDiv = document.getElementById('search-results');
+        let timeout;
+        
+        searchInput.addEventListener('input', e => {
+            clearTimeout(timeout);
+            let q = e.target.value.trim();
+            if (q.length < 2) { resultsDiv.style.display = 'none'; return; }
+            timeout = setTimeout(async () => {
+                let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)} Alexandria Egypt&limit=5&accept-language=ar`);
+                let data = await res.json();
+                if (data.length) {
+                    resultsDiv.innerHTML = data.map(item => `<div onclick="searchSelect(${item.lat}, ${item.lon}, '${item.display_name}')">${item.display_name}</div>`).join('');
+                    resultsDiv.style.display = 'block';
+                }
+            }, 500);
+        });
+    }
+    
+    function searchSelect(lat, lon, name) {
+        map.setView([lat, lon], 17);
+        document.getElementById('search-results').style.display = 'none';
+        document.getElementById('search-input').value = name.split(',')[0];
+    }
+    
+    async function confirmLocation() {
+        let center = map.getCenter();
+        let address = await getAddress(center.lat, center.lng);
+        let placeName = address.split(',')[0];
+        
+        if (mapMode === 'pickup') {
+            pickupCoords = center;
+            if (pickupMarker) map.removeLayer(pickupMarker);
+            pickupMarker = L.marker([center.lat, center.lng], {
+                icon: L.divIcon({ html: '<i class="fas fa-box" style="font-size:28px;color:#f59e0b;"></i>', iconSize: [28, 28] })
+            }).addTo(map);
+            
+            document.getElementById('pick-btn').innerHTML = '📍 تم ✓';
+            document.getElementById('pick-btn').classList.remove('active');
+            document.getElementById('drop-btn').classList.add('active');
+            mapMode = 'drop';
+            showToast(`تم تحديد الاستلام: ${placeName}`, 'success');
+        } else {
+            dropCoords = center;
+            if (dropMarker) map.removeLayer(dropMarker);
+            dropMarker = L.marker([center.lat, center.lng], {
+                icon: L.divIcon({ html: '<i class="fas fa-flag-checkered" style="font-size:28px;color:#10b981;"></i>', iconSize: [28, 28] })
+            }).addTo(map);
+            
+            document.getElementById('drop-btn').innerHTML = '🏁 تم ✓';
+            document.getElementById('next-to-details').style.display = 'block';
+            showToast(`تم تحديد التسليم: ${placeName}`, 'success');
+        }
+    }
+    
+    async function getAddress(lat, lng) {
+        try {
+            let res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ar`);
+            let data = await res.json();
+            return data.display_name || `${lat}, ${lng}`;
+        } catch(e) {
+            return `${lat}, ${lng}`;
+        }
+    }
+    
+    function goToDetails() {
+        if (!pickupCoords || !dropCoords) {
+            showToast('حدد الاستلام والتسليم أولاً', 'warning');
+            return;
+        }
+        let distance = calculateDistance(pickupCoords.lat, pickupCoords.lng, dropCoords.lat, dropCoords.lng);
+        let suggestedPrice = calculatePrice(distance);
+        document.getElementById('distance-value').innerText = distance.toFixed(1);
+        document.getElementById('min-price').innerText = suggestedPrice;
+        showView('create-details');
+    }
+    
+    // ==================== نشر الطلب ====================
+    async function finishOrder() {
+        let title = document.getElementById('order-title').value.trim();
+        let price = document.getElementById('order-price').value;
+        
+        if (!title) {
+            showToast('اكتب عنوان الطلب', 'warning');
+            return;
+        }
+        
+        if (!price || price < 5) {
+            showToast('السعر يجب أن يكون 5 جنيه على الأقل', 'warning');
+            return;
+        }
+        
+        let pickupAddr = await getAddress(pickupCoords.lat, pickupCoords.lng);
+        let dropAddr = await getAddress(dropCoords.lat, dropCoords.lng);
+        let distance = calculateDistance(pickupCoords.lat, pickupCoords.lng, dropCoords.lat, dropCoords.lng);
+        
+        let newOrder = {
+            id: Date.now(),
+            title: title,
+            desc: document.getElementById('order-desc').value,
+            price: parseInt(price),
+            distance: distance.toFixed(1),
+            pickupCoords: pickupCoords,
+            dropCoords: dropCoords,
+            pickupPlace: pickupAddr.split(',')[0],
+            dropPlace: dropAddr.split(',')[0],
+            status: 'متاح',
+            owner: currentUser.name,
+            ownerUid: currentUser.uid,
+            ownerPhone: currentUser.phone,
+            taker: null,
+            takerUid: null,
+            received: false,
+            delivered: false,
+            collected: false,
+            ownerRated: false,
+            takerRated: false,
+            createdAt: Date.now()
+        };
+        
+        await db.ref(`orders/${newOrder.id}`).set(newOrder);
+        showToast('تم نشر الطلب بنجاح!', 'success');
+        
+        showView('my-orders');
+        renderMyOrders();
+        
+        document.getElementById('order-title').value = '';
+        document.getElementById('order-desc').value = '';
+        document.getElementById('order-price').value = '';
+        pickupCoords = null;
+        dropCoords = null;
+        if (pickupMarker) map.removeLayer(pickupMarker);
+        if (dropMarker) map.removeLayer(dropMarker);
+        mapMode = 'pickup';
+        document.getElementById('pick-btn').innerHTML = '📍 الاستلام';
+        document.getElementById('drop-btn').innerHTML = '🏁 التسليم';
+        document.getElementById('pick-btn').classList.add('active');
+        document.getElementById('drop-btn').classList.remove('active');
+        document.getElementById('next-to-details').style.display = 'none';
+    }
+    
+    // ==================== أخذ الطلب مع كرت الموافقة ====================
+    function takeOrder(orderId) {
+        if (isAdmin) {
+            showToast('الأدمن لا يمكنه أخذ الطلبات!', 'error');
+            return;
+        }
+        
+        let order = allOrders.find(o => o.id == orderId);
+        if (!order || order.status !== 'متاح') {
+            showToast('هذا الطلب غير متاح حالياً', 'warning');
+            return;
+        }
+        
+        if (order.owner === currentUser.name) {
+            showToast('لا يمكنك أخذ طلبك الخاص!', 'warning');
+            return;
+        }
+        
+        if (myTakenOrders.filter(o => o.status !== 'مكتمل').length >= 2) {
+            showToast('لا يمكنك أخذ أكثر من طلبين', 'warning');
+            return;
+        }
+        
+        pendingApprovalOrder = order;
+        
+        // عرض كرت الموافقة
+        const container = document.getElementById('approval-content');
+        container.innerHTML = `
+            <div class="approval-card">
+                <div class="profile-img" style="margin:0 auto 15px; width:60px; height:60px;">
+                    ${order.ownerImage ? `<img src="${order.ownerImage}" style="width:100%;height:100%;border-radius:25px;">` : '<i class="fas fa-user"></i>'}
+                </div>
+                <h3>${order.owner}</h3>
+                <p>📞 ${order.ownerPhone || 'غير متاح'}</p>
+                <p>📍 الاستلام: ${order.pickupPlace}</p>
+                <p>🏁 التسليم: ${order.dropPlace}</p>
+                <p>💰 المبلغ: ${order.price} جنيه</p>
+                <div class="white-line"></div>
+                <p style="color: var(--warning);">هل توافق على توصيل هذا الطلب؟</p>
+            </div>
+        `;
+        document.getElementById('approval-modal').style.display = 'flex';
+    }
+    
+    function confirmTakeOrder() {
+        if (pendingApprovalOrder) {
+            document.getElementById('approval-modal').style.display = 'none';
+            showAd(() => {
+                executeTakeOrder(pendingApprovalOrder);
+            });
+        }
+    }
+    
+    function rejectTakeOrder() {
+        pendingApprovalOrder = null;
+        document.getElementById('approval-modal').style.display = 'none';
+        showToast('تم رفض الطلب', 'info');
+    }
+    
+    function showAdForOwner(order) {
+        showToast(`جاري عرض إعلان لصاحب الطلب ${order.owner}...`, 'info');
+        executeTakeOrder(pendingApprovalOrder);
+    }
+    
+    async function executeTakeOrder(order) {
+        if (!order || order.status !== 'متاح') {
+            showToast('عفواً، الطلب لم يعد متاحاً', 'error');
+            pendingApprovalOrder = null;
+            return;
+        }
+        
+        try {
+            order.status = 'جاري التوصيل';
+            order.taker = currentUser.name;
+            order.takerUid = currentUser.uid;
+            
+            myTakenOrders.push(order);
+            await db.ref(`orders/${order.id}`).update(order);
+            await db.ref(`users/${currentUser.uid}/takenOrders`).set(myTakenOrders);
+            
+            await db.ref(`messages/${order.id}`).push({
+                sender: 'النظام',
+                text: `✅ تم أخذ الطلب بواسطة ${currentUser.name}`,
+                time: Date.now(),
+                isSystem: true
+            });
+            
+            renderOrders();
+            renderMyOrders();
+            renderMyTasks();
+            updateProfileStats();
+            showToast(`تم أخذ الطلب "${order.title}" بنجاح!`, 'success');
+            pendingApprovalOrder = null;
+        } catch (error) {
+            console.error('خطأ في أخذ الطلب:', error);
+            showToast('حدث خطأ، حاول مرة أخرى', 'error');
+        }
+    }
+    
+    // ==================== عرض الطلبات ====================
+    function renderOrders() {
+        let container = document.getElementById('orders-list');
+        let available = allOrders.filter(o => o.status === 'متاح');
+        
+        if (available.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-box-open"></i>
+                    <p>مافيش سبوبات دلوقتي</p>
+                    <div class="center-btn" onclick="showAdBeforeCreate()">+ طلب جديد</div>
+                </div>
+            `;
+            return;
+        }
+        
+        let sortedOrders = [...available];
+        if (currentFilter === 'nearest' && userLocation) {
+            sortedOrders.sort((a, b) => {
+                let distA = calculateDistance(userLocation.lat, userLocation.lng, a.pickupCoords.lat, a.pickupCoords.lng);
+                let distB = calculateDistance(userLocation.lat, userLocation.lng, b.pickupCoords.lat, b.pickupCoords.lng);
+                return distA - distB;
+            });
+        } else if (currentFilter === 'lowest') {
+            sortedOrders.sort((a, b) => a.price - b.price);
+        } else if (currentFilter === 'highest') {
+            sortedOrders.sort((a, b) => b.price - a.price);
+        }
+        
+        container.innerHTML = sortedOrders.map(o => {
+            let distToPickup = userLocation ? calculateDistance(userLocation.lat, userLocation.lng, o.pickupCoords.lat, o.pickupCoords.lng).toFixed(1) : '?';
+            return `
+                <div class="order-card">
+                    <div style="display:flex; justify-content:space-between;">
+                        <strong>${o.title}</strong>
+                        <span style="color:var(--primary)">${o.price} EGP</span>
+                    </div>
+                    <p style="font-size:0.7rem;">📍 الاستلام: ${o.pickupPlace}</p>
+                    <p style="font-size:0.7rem;">🏁 التسليم: ${o.dropPlace}</p>
+                    <div class="distance-badge">
+                        🚶 ${distToPickup} كم من موقعك | 📏 ${o.distance || '?'} كم | 💰 ${PRICE_PER_KM} جنيه/كم
+                    </div>
+                    <button class="btn-main" style="margin-top:10px; padding:8px;" onclick="takeOrder(${o.id})">خذ الطلب</button>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    function renderMyOrders() {
+        let container = document.getElementById('my-orders-list');
+        let active = myTakenOrders.filter(o => o.status !== 'مكتمل');
+        
+        if (active.length === 0) {
+            container.innerHTML = '<div class="empty-state"><i class="fas fa-box-open"></i><p>لسه ما أخدتش أي سبوبة</p></div>';
+            return;
+        }
+        
+        container.innerHTML = active.map(o => `
+            <div class="order-card" onclick='openOrderChat(${JSON.stringify(o).replace(/'/g, "\\'")})'>
+                <div style="display:flex; justify-content:space-between;">
+                    <strong>${o.title}</strong>
+                    <span style="color:#10b981">${o.price} EGP</span>
+                </div>
+                <p>👤 ${o.owner}</p>
+                <small style="color:#f59e0b;">اضغط للمتابعة</small>
+            </div>
+        `).join('');
+    }
+    
+    function showFollowOrdersActive() {
+        showArchive = false;
+        document.querySelectorAll('.archive-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        renderFollowOrders();
+    }
+    
+    function showFollowOrdersArchive() {
+        showArchive = true;
+        document.querySelectorAll('.archive-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        renderFollowOrders();
+    }
+    
+    function renderFollowOrders() {
+        let container = document.getElementById('follow-orders-list');
+        let myOrders = allOrders.filter(o => o.owner === currentUser.name);
+        let taken = myTakenOrders;
+        
+        let allOrdersList = [...myOrders, ...taken];
+        let filteredOrders;
+        
+        if (showArchive) {
+            filteredOrders = allOrdersList.filter(o => o.status === 'مكتمل');
+        } else {
+            filteredOrders = allOrdersList.filter(o => o.status !== 'مكتمل');
+        }
+        
+        if (filteredOrders.length === 0) {
+            container.innerHTML = '<div class="empty-state"><i class="fas fa-box-open"></i><p>' + (showArchive ? 'لا توجد طلبات في الأرشيف' : 'لا توجد طلبات نشطة') + '</p></div>';
+            return;
+        }
+        
+        container.innerHTML = filteredOrders.map(o => {
+            let isOwner = o.owner === currentUser.name;
+            let isActive = o.status !== 'مكتمل';
+            return `
+                <div class="order-card ${isActive ? 'highlight' : ''}" onclick='openFollowOrderChat(${JSON.stringify(o).replace(/'/g, "\\'")})'>
+                    <div style="display:flex; justify-content:space-between;">
+                        <strong>${o.title}</strong>
+                        <span>${o.price} EGP</span>
+                    </div>
+                    <p style="font-size:0.75rem;">${isOwner ? '📦 طلب منشور' : '🚚 طلب تم أخذه'}</p>
+                    <p style="font-size:0.7rem; color:${isActive ? '#f59e0b' : '#10b981'}">${isActive ? '🔄 جاري التنفيذ' : '✅ مكتمل'}</p>
+                    <small style="color:var(--primary);">اضغط للمحادثة</small>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    function filterOrders(type) {
+        currentFilter = type;
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        renderOrders();
+    }
+    
+    function showFollowOrders() {
+        showArchive = false;
+        document.querySelectorAll('.archive-btn').forEach(btn => btn.classList.remove('active'));
+        if (document.querySelector('.archive-btn')) {
+            document.querySelector('.archive-btn').classList.add('active');
+        }
+        renderFollowOrders();
+        showView('follow-orders-screen');
+    }
+    
+    // ==================== الشات العادي ====================
+    function openOrderChat(order) {
+        currentOrder = order;
+        listenToMessages(order.id);
+        document.getElementById('chat-order-title').innerHTML = `${order.title}`;
+        renderChatMessages();
+        chatBackScreen = 'my-orders';
+        showView('chat-screen');
+    }
+    
+    function openFollowOrderChat(order) {
+        currentOrder = order;
+        listenToMessages(order.id);
+        document.getElementById('chat-order-title').innerHTML = `${order.title}`;
+        renderChatMessages();
+        chatBackScreen = 'follow-orders-screen';
+        showView('chat-screen');
+    }
+    
+    function listenToMessages(orderId) {
+        db.ref(`messages/${orderId}`).on('value', s => {
+            messages[orderId] = s.val() ? Object.values(s.val()) : [];
+            if (currentOrder && currentOrder.id === orderId) {
+                renderChatMessages();
+            }
+        });
+    }
+    
+    function renderChatMessages() {
+        let container = document.getElementById('chat-messages');
+        let msgs = messages[currentOrder?.id] || [];
+        
+        container.innerHTML = msgs.map(m => {
+            let senderColor = m.sender === currentUser.name ? 'var(--primary)' : (m.sender === 'الإدارة' ? 'var(--admin)' : 'var(--warning)');
+            let initial = m.sender.charAt(0);
+            let isVoice = m.text === '🎤 رسالة صوتية' && m.voice;
+            return `
+                <div class="message ${m.sender === currentUser.name ? 'sent' : 'received'}">
+                    <div class="message-sender">
+                        <span class="sender-circle" style="background: ${senderColor};" onclick="viewUserProfile('${m.sender}')">${initial}</span>
+                        <strong>${m.sender}</strong>
+                    </div>
+                    ${isVoice ? `<audio controls src="${m.voice}" style="max-width:200px;"></audio>` : m.text}
+                    <small>${new Date(m.time).toLocaleTimeString()}</small>
+                </div>
+            `;
+        }).join('');
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function viewUserProfile(username) {
+        db.ref('users').orderByChild('name').equalTo(username).once('value', s => {
+            if (s.exists()) {
+                let user = Object.values(s.val())[0];
+                let userRatings = ratings[username] || [];
+                let avgRating = 0;
+                if (userRatings.length > 0) {
+                    avgRating = (userRatings.reduce((a, b) => a + (b.rating || 0), 0) / userRatings.length).toFixed(1);
+                }
+                let starsHtml = '';
+                for (let i = 1; i <= 5; i++) {
+                    starsHtml += `<i class="fas fa-star" style="color:${i <= avgRating ? '#fbbf24' : '#475569'}"></i>`;
+                }
+                let userCompleted = 0;
+                if (user.takenOrders) {
+                    if (Array.isArray(user.takenOrders)) {
+                        userCompleted = user.takenOrders.filter(o => o && o.status === 'مكتمل').length;
+                    } else if (typeof user.takenOrders === 'object') {
+                        userCompleted = Object.values(user.takenOrders).filter(o => o && o.status === 'مكتمل').length;
+                    }
+                }
+                let userEarnings = earnings[username] || 0;
+                let avatarHtml = '';
+                if (user.profileImage) {
+                    avatarHtml = `<img src="${user.profileImage}" style="width:100%;height:100%;border-radius:25px;">`;
+                } else if (user.avatarType && DEFAULT_AVATARS[user.avatarType]) {
+                    avatarHtml = `<div style="width:100%;height:100%;border-radius:25px; background:${DEFAULT_AVATARS[user.avatarType]}; display:flex; align-items:center; justify-content:center;"><i class="fas fa-user" style="opacity:0.5;"></i></div>`;
+                } else {
+                    avatarHtml = '<i class="fas fa-user"></i>';
+                }
+                let html = `
+                    <div style="text-align:center;">
+                        <div class="profile-img" style="margin:0 auto 15px;">
+                            ${avatarHtml}
+                        </div>
+                        <h2>${user.name}</h2>
+                        <p>📞 ${user.phone || 'غير متاح'}</p>
+                        <div class="rating-stars" style="justify-content:center; margin:10px 0; cursor:pointer;" onclick="showOtherUserRatings('${username}')">
+                            ${starsHtml} <span style="margin-right:5px;">(${avgRating})</span>
+                        </div>
+                        <div class="profile-stats" style="margin-top:15px;">
+                            <div class="profile-stat">
+                                <div class="number">${userCompleted}</div>
+                                <small>✅ مكتملة</small>
+                            </div>
+                            <div class="profile-stat">
+                                <div class="number">${userEarnings}</div>
+                                <small>💰 أرباح</small>
+                            </div>
+                        </div>
+                        <button class="btn-main" onclick="closeUserProfile()">إغلاق</button>
+                    </div>
+                `;
+                document.getElementById('user-profile-content').innerHTML = html;
+                showView('user-profile-screen');
+            }
+        });
+    }
+    
+    function showOtherUserRatings(username) {
+        let userRatings = ratings[username] || [];
+        let container = document.getElementById('all-ratings-list');
+        
+        let ratingsArray = [];
+        if (Array.isArray(userRatings)) {
+            ratingsArray = userRatings;
+        } else if (typeof userRatings === 'object') {
+            ratingsArray = Object.values(userRatings);
+        }
+        
+        if (ratingsArray.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p>لا توجد تقييمات بعد</p></div>';
+        } else {
+            container.innerHTML = ratingsArray.map(r => `
+                <div class="rating-item">
+                    <div class="rating-stars-small">
+                        ${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}
+                    </div>
+                    <p>${r.comment || 'لا يوجد تعليق'}</p>
+                    <small>من: ${r.from} - ${new Date(r.time).toLocaleDateString()}</small>
+                </div>
+            `).join('');
+        }
+        showView('all-ratings-screen');
+    }
+    
+    function goBackFromUserProfile() {
+        showView('chat-screen');
+    }
+    
+    function closeUserProfile() {
+        showView('chat-screen');
+    }
+    
+    async function sendMessage() {
+        let input = document.getElementById('chat-input');
+        let text = input.value.trim();
+        if (!text || !currentOrder) return;
+        
+        await db.ref(`messages/${currentOrder.id}`).push({
+            sender: currentUser.name,
+            text: text,
+            time: Date.now()
+        });
+        input.value = '';
+    }
+    
+    // التسجيل الصوتي
+    let voiceBtn = null;
+    
+    function startVoiceRecording() {
+        if (!currentOrder) {
+            showToast('لا يوجد طلب مفتوح', 'warning');
+            return;
+        }
+        
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            
+            mediaRecorder.ondataavailable = event => {
+                audioChunks.push(event.data);
+            };
+            
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.onload = async () => {
+                    await db.ref(`messages/${currentOrder.id}`).push({
+                        sender: currentUser.name,
+                        text: '🎤 رسالة صوتية',
+                        voice: reader.result,
+                        time: Date.now()
+                    });
+                    showToast('تم إرسال الرسالة الصوتية', 'success');
+                };
+                reader.readAsDataURL(audioBlob);
+                stream.getTracks().forEach(track => track.stop());
+                if (voiceBtn) voiceBtn.classList.remove('recording');
+            };
+            
+            mediaRecorder.start();
+            if (voiceBtn) voiceBtn.classList.add('recording');
+            showToast('سجل رسالتك... ارفع إصبعك للإرسال', 'info');
+            
+            setTimeout(() => {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                }
+            }, 30000);
+        }).catch(err => {
+            showToast('مشكلة في الميكروفون', 'error');
+        });
+    }
+    
+    function stopVoiceRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+        }
+    }
+    
+    function openOrderSteps() {
+        stepsOrder = currentOrder;
+        renderStepsScreen();
+        showView('steps-screen');
+    }
+    
+    function renderStepsScreen() {
+        let container = document.getElementById('steps-container');
+        let isTaker = stepsOrder.taker === currentUser.name;
+        let isOwner = stepsOrder.owner === currentUser.name;
+        
+        let html = `
+            <div class="step-card">
+                <h3>تفاصيل الطلب</h3>
+                <div class="detail-row"><span class="detail-label">عنوان الطلب:</span><span class="detail-value">${stepsOrder.title}</span></div>
+                <div class="detail-row"><span class="detail-label">الوصف:</span><span class="detail-value">${stepsOrder.desc || 'لا يوجد'}</span></div>
+                <div class="detail-row"><span class="detail-label">السعر:</span><span class="detail-value">${stepsOrder.price} EGP</span></div>
+                <div class="detail-row"><span class="detail-label">المسافة:</span><span class="detail-value">${stepsOrder.distance || '?'} كم (${PRICE_PER_KM} جنيه/كم)</span></div>
+                <div class="detail-row"><span class="detail-label">مقدم الطلب:</span><span class="detail-value" onclick="viewUserProfile('${stepsOrder.owner}')" style="cursor:pointer;color:var(--primary);">${stepsOrder.owner}</span></div>
+                <div class="detail-row"><span class="detail-label">الساعي:</span><span class="detail-value" onclick="${stepsOrder.taker ? `viewUserProfile('${stepsOrder.taker}')` : ''}" style="${stepsOrder.taker ? 'cursor:pointer;color:var(--primary);' : ''}">${stepsOrder.taker || 'لم يؤخذ'}</span></div>
+                <div class="detail-row"><span class="detail-label">الحالة:</span><span class="detail-value">${stepsOrder.status}</span></div>
+            </div>
+        `;
+        
+        if (isTaker && !isAdmin) {
+            html += `<div class="step-card">
+                <h3>إجراءات الطلب</h3>`;
+            if (!stepsOrder.received) {
+                html += `<button class="step-action-btn receive" onclick="markReceived()">✅ تم الاستلام</button>`;
+            } else if (!stepsOrder.delivered) {
+                html += `<button class="step-action-btn deliver" onclick="markDelivered()">🏁 تم التسليم</button>`;
+            } else if (!stepsOrder.collected) {
+                html += `<button class="step-action-btn collect" onclick="showCollection()">💰 تحصيل المبلغ (${stepsOrder.price} EGP)</button>`;
+            }
+            html += `</div>`;
+        }
+        
+        // منطق التقييم المتبادل
+        let canRateOwner = isTaker && stepsOrder.collected && !stepsOrder.ownerRated;
+        let canRateTaker = isOwner && stepsOrder.collected && !stepsOrder.takerRated;
+        
+        if (canRateOwner) {
+            html += `<div class="step-card">
+                <button class="step-action-btn rate" onclick='openRatingForUser("${stepsOrder.owner}", "owner")'>⭐ تقييم صاحب الطلب</button>
+            </div>`;
+        }
+        
+        if (canRateTaker) {
+            html += `<div class="step-card">
+                <button class="step-action-btn rate" onclick='openRatingForUser("${stepsOrder.taker}", "taker")'>⭐ تقييم الساعي</button>
+            </div>`;
+        }
+        
+        if (stepsOrder.ownerRated && stepsOrder.takerRated) {
+            html += `<div class="step-card completed">
+                <h3>✅ اكتمل الطلب بالكامل (تم التقييم المتبادل)</h3>
+            </div>`;
+        } else if (stepsOrder.collected && (stepsOrder.ownerRated || stepsOrder.takerRated)) {
+            html += `<div class="step-card">
+                <h3>⏳ في انتظار تقييم الطرف الآخر لإكمال الطلب</h3>
+            </div>`;
+        }
+        
+        container.innerHTML = html;
+    }
+    
+    async function markReceived() {
+        stepsOrder.received = true;
+        await db.ref(`orders/${stepsOrder.id}`).update({ received: true });
+        await addSystemMessage(`✅ تم استلام الطلب بواسطة ${currentUser.name}`);
+        renderStepsScreen();
+    }
+    
+    async function markDelivered() {
+        stepsOrder.delivered = true;
+        await db.ref(`orders/${stepsOrder.id}`).update({ delivered: true });
+        await addSystemMessage(`🏁 تم تسليم الطلب بواسطة ${currentUser.name}`);
+        renderStepsScreen();
+    }
+    
+    function showCollection() {
+        document.getElementById('due-amount').innerText = stepsOrder.price;
+        document.getElementById('payment-modal').style.display = 'flex';
+    }
+    
+    async function confirmCollection() {
+        let amount = document.getElementById('collection-amount').value;
+        if (!amount) {
+            showToast('أدخل المبلغ', 'warning');
+            return;
+        }
+        
+        stepsOrder.collected = true;
+        await db.ref(`orders/${stepsOrder.id}`).update({ collected: true });
+        
+        let currentEarnings = earnings[currentUser.name] || 0;
+        earnings[currentUser.name] = currentEarnings + parseInt(amount);
+        await db.ref(`earnings/${currentUser.name}`).set(earnings[currentUser.name]);
+        
+        await addSystemMessage(`💰 تم تحصيل ${amount} جنيه بواسطة ${currentUser.name}`);
+        showToast(`تم تحصيل ${amount} جنيه`, 'success');
+        closePaymentModal();
+        updateProfileStats();
+        renderStepsScreen();
+        
+        // بعد التحصيل، نتحقق من التقييمات
+        if (stepsOrder.taker === currentUser.name && !stepsOrder.ownerRated) {
+            openRatingForUser(stepsOrder.owner, 'owner');
+        } else if (stepsOrder.owner === currentUser.name && !stepsOrder.takerRated) {
+            openRatingForUser(stepsOrder.taker, 'taker');
+        }
+    }
+    
+    // ==================== دوال التقييم - الحل النهائي والمضمون ====================
+    window.openRatingForUser = function(userName, role) {
+        console.log("فتح تقييم للمستخدم:", userName, "الدور:", role);
+        window.ratingForUserGlobal = userName;
+        window.selectedRatingGlobal = 0;
+        document.getElementById('rating-user-name').innerHTML = userName;
+        
+        // إعادة تعيين النجوم
+        const stars = document.querySelectorAll('#stars-container .star');
+        stars.forEach(s => s.classList.remove('active'));
+        document.getElementById('rating-comment').value = '';
+        
+        // إضافة حدث النقر على النجوم
+        stars.forEach(star => {
+            star.onclick = () => {
+                let val = parseInt(star.dataset.value);
+                window.selectedRatingGlobal = val;
+                stars.forEach((s, i) => {
+                    if (i < val) s.classList.add('active');
+                    else s.classList.remove('active');
+                });
+            };
+        });
+        
+        // تخزين الدور لتحديث الحقل الصحيح بعد التقييم
+        window.currentRatingRoleGlobal = role;
+        window.currentOrderForRating = stepsOrder;
+        
+        document.getElementById('rating-modal').style.display = 'flex';
+    }
+    
+    // دالة إرسال التقييم - معرفة بشكل صحيح في النطاق العام
+    window.submitRating = async function() {
+        console.log("تم الضغط على إرسال التقييم");
+        console.log("selectedRatingGlobal:", window.selectedRatingGlobal);
+        
+        if (!window.selectedRatingGlobal || window.selectedRatingGlobal === 0) {
+            showToast('اختر تقييم أولاً', 'warning');
+            return;
+        }
+        
+        if (!window.ratingForUserGlobal) {
+            showToast('حدث خطأ، يرجى المحاولة مرة أخرى', 'error');
+            window.closeRatingModal();
+            return;
+        }
+        
+        showLoading(true);
+        
+        try {
+            // حفظ التقييم في Firebase
+            await db.ref(`ratings/${window.ratingForUserGlobal}`).push({
+                rating: window.selectedRatingGlobal,
+                comment: document.getElementById('rating-comment').value,
+                from: currentUser.name,
+                time: Date.now()
+            });
+            
+            // تحديث حالة التقييم في الطلب
+            if (window.currentOrderForRating) {
+                // التأكد من وجود الخصائص
+                if (window.currentRatingRoleGlobal === 'owner') {
+                    window.currentOrderForRating.ownerRated = true;
+                } else if (window.currentRatingRoleGlobal === 'taker') {
+                    window.currentOrderForRating.takerRated = true;
+                }
+                
+                // إذا تم التقييم المتبادل، نكمل الطلب
+                if (window.currentOrderForRating.ownerRated && window.currentOrderForRating.takerRated) {
+                    window.currentOrderForRating.status = 'مكتمل';
+                    // إزالة الطلب من قائمة الطلبات المأخوذة للمستخدم الحالي
+                    if (window.currentOrderForRating.taker === currentUser.name) {
+                        myTakenOrders = myTakenOrders.filter(o => o.id !== window.currentOrderForRating.id);
+                        await db.ref(`users/${currentUser.uid}/takenOrders`).set(myTakenOrders);
+                        renderMyTasks();
+                        updateProfileBadge();
+                    }
+                }
+                
+                // تحديث الطلب في Firebase
+                const updateData = {};
+                if (window.currentRatingRoleGlobal === 'owner') updateData.ownerRated = true;
+                if (window.currentRatingRoleGlobal === 'taker') updateData.takerRated = true;
+                if (window.currentOrderForRating.ownerRated && window.currentOrderForRating.takerRated) updateData.status = 'مكتمل';
+                
+                if (Object.keys(updateData).length > 0) {
+                    await db.ref(`orders/${window.currentOrderForRating.id}`).update(updateData);
+                }
+                
+                // تحديث المتغير stepsOrder
+                stepsOrder = window.currentOrderForRating;
+            }
+            
+            showToast('تم إرسال التقييم بنجاح!', 'success');
+            window.closeRatingModal();
+            
+            // تحديث الواجهات
+            updateProfileStats();
+            renderMyOrders();
+            if (stepsOrder) renderStepsScreen();
+            renderFollowOrders();
+            
+            // تحديث متوسط التقييم
+            let userRatings = ratings[currentUser.name] || [];
+            let avg = 0;
+            if (userRatings.length > 0) {
+                avg = (userRatings.reduce((a, b) => a + (b.rating || 0), 0) / userRatings.length).toFixed(1);
+            }
+            document.getElementById('profile-rating').innerText = avg;
+            
+        } catch (error) {
+            console.error("خطأ في إرسال التقييم:", error);
+            showToast('حدث خطأ في إرسال التقييم: ' + error.message, 'error');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    // دالة إغلاق نافذة التقييم
+    window.closeRatingModal = function() {
+        document.getElementById('rating-modal').style.display = 'none';
+        window.selectedRatingGlobal = 0;
+        window.ratingForUserGlobal = null;
+        window.currentRatingRoleGlobal = null;
+        window.currentOrderForRating = null;
+    }
+    
+    async function addSystemMessage(text) {
+        if (stepsOrder) {
+            await db.ref(`messages/${stepsOrder.id}`).push({
+                sender: 'النظام',
+                text: text,
+                time: Date.now(),
+                isSystem: true
+            });
+        }
+    }
+    
+    // ==================== الدعم الفني المنفصل ====================
+    function showSupportRequestModal() {
+        let modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3>طلب دعم 🎧</h3>
+                <p class="support-badge" style="margin-bottom: 10px;">محادثة منفصلة عن الطلب</p>
+                <textarea id="support-request-text" rows="3" placeholder="اكتب مشكلتك..."></textarea>
+                <button class="btn-main" onclick="sendSupportRequest()" style="background: var(--primary);">إرسال الطلب</button>
+                <button class="btn-main" style="background: #475569; margin-top: 10px;" onclick="this.closest('.modal').remove()">إلغاء</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    function sendSupportRequest() {
+        let text = document.getElementById('support-request-text')?.value.trim();
+        if (!text) {
+            showToast('اكتب مشكلتك', 'warning');
+            return;
+        }
+        
+        let request = {
+            id: Date.now(),
+            userId: currentUser.uid,
+            userName: currentUser.name,
+            orderId: currentOrder?.id || null,
+            message: text,
+            status: 'pending',
+            time: Date.now(),
+            chatId: 'support_' + Date.now()
+        };
+        
+        db.ref(`supportRequests/${request.id}`).set(request);
+        showToast('تم إرسال طلب الدعم، سيتم الرد قريباً في محادثة منفصلة', 'success');
+        document.querySelectorAll('.modal').forEach(m => m.remove());
+    }
+    
+    function showSupportRequests() {
+        let container = document.getElementById('support-requests-list');
+        db.ref('supportRequests').on('value', s => {
+            let requests = s.val() ? Object.values(s.val()) : [];
+            if (requests.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>لا توجد طلبات دعم</p></div>';
+            } else {
+                container.innerHTML = requests.map(r => `
+                    <div class="support-request-card">
+                        <div style="display:flex; justify-content:space-between;">
+                            <strong>${r.userName}</strong>
+                            <span style="color:${r.status === 'pending' ? '#f59e0b' : (r.status === 'closed' ? '#ef4444' : '#10b981')}">
+                                ${r.status === 'pending' ? 'قيد المراجعة' : (r.status === 'closed' ? 'مغلق' : 'تم الرد')}
+                            </span>
+                        </div>
+                        <p>الطلب: ${r.orderId || 'عام'}</p>
+                        <p>الرسالة: ${r.message}</p>
+                        ${r.status === 'pending' ? `
+                            <div class="btn-group">
+                                <button class="btn-main" style="background: var(--success); margin-top:5px;" onclick="acceptSupportRequest('${r.id}', '${r.userId}', '${r.chatId}', '${r.userName}')">
+                                    ✅ قبول وفتح الشات
+                                </button>
+                                <button class="btn-main" style="background: var(--danger); margin-top:5px;" onclick="rejectSupportRequest('${r.id}')">
+                                    ❌ رفض
+                                </button>
+                            </div>
+                        ` : (r.status === 'accepted' ? `
+                            <div class="btn-group">
+                                <button class="btn-main" style="background: var(--primary); margin-top:5px;" onclick="openSupportChat('${r.chatId}', '${r.userName}')">
+                                    💬 فتح المحادثة
+                                </button>
+                                <button class="btn-main" style="background: var(--danger); margin-top:5px;" onclick="closeSupportRequestFromList('${r.id}')">
+                                    🔒 إغلاق الطلب
+                                </button>
+                            </div>
+                        ` : '')}
+                    </div>
+                `).join('');
+            }
+            showView('support-requests-screen');
+        });
+    }
+    
+    function acceptSupportRequest(requestId, userId, chatId, userName) {
+        db.ref(`supportRequests/${requestId}/status`).set('accepted');
+        
+        let welcomeMsg = {
+            sender: 'الإدارة',
+            text: `👋 مرحباً ${userName}، تم قبول طلب الدعم الخاص بك. هذه محادثة منفصلة عن الطلب. كيف يمكنني مساعدتك؟`,
+            time: Date.now()
+        };
+        
+        db.ref(`supportChats/${chatId}/messages`).push(welcomeMsg);
+        
+        // إضافة المستخدم للمشاركين في الشات
+        db.ref(`supportChats/${chatId}/participants`).set({
+            [userId]: true,
+            ['admin_' + currentUser.uid]: true
+        });
+        
+        showToast('تم قبول طلب الدعم، تم فتح محادثة منفصلة', 'success');
+        
+        // إظهار الدائرة الحمراء في شات الطلب
+        if (currentOrder && currentOrder.id) {
+            document.getElementById('support-red-dot').style.display = 'block';
+            supportRedDotVisible = true;
+            supportChatId = chatId;
+            document.getElementById('open-support-chat-btn').style.display = 'flex';
+        }
+        
+        // فتح الشات مباشرة
+        openSupportChat(chatId, userName);
+    }
+    
+    function openSupportChat(chatId, userName) {
+        currentSupportRequest = {
+            chatId: chatId,
+            userName: userName
+        };
+        supportChatId = chatId;
+        hasActiveSupport = true;
+        
+        document.getElementById('support-messages').innerHTML = '';
+        document.getElementById('support-close-btn').style.display = 'inline-block';
+        
+        // الاستماع للرسائل
+        if (supportMessagesRef) {
+            supportMessagesRef.off();
+        }
+        
+        supportMessagesRef = db.ref(`supportChats/${chatId}/messages`);
+        supportMessagesRef.on('value', s => {
+            let msgs = s.val() ? Object.values(s.val()) : [];
+            let container = document.getElementById('support-messages');
+            
+            container.innerHTML = msgs.map(m => {
+                let isAdminSender = m.sender === 'الإدارة';
+                let isCurrentUser = m.sender === currentUser.name || (isAdmin && isAdminSender);
+                let senderColor = isAdminSender ? 'var(--admin)' : 'var(--primary)';
+                let initial = (m.sender === 'الإدارة' ? 'إ' : m.sender.charAt(0));
+                
+                return `
+                    <div class="message ${isCurrentUser ? 'sent' : 'received'}">
+                        <div class="message-sender">
+                            <span class="sender-circle" style="background: ${senderColor};">${initial}</span>
+                            <strong>${m.sender}</strong>
+                        </div>
+                        ${m.text}
+                        <small>${new Date(m.time).toLocaleTimeString()}</small>
+                    </div>
+                `;
+            }).join('');
+            container.scrollTop = container.scrollHeight;
+        });
+        
+        showView('support-screen');
+    }
+    
+    async function sendSupportMessage() {
+        let input = document.getElementById('support-input');
+        let text = input.value.trim();
+        if (!text || !currentSupportRequest) return;
+        
+        let sender = isAdmin ? 'الإدارة' : currentUser.name;
+        
+        await db.ref(`supportChats/${currentSupportRequest.chatId}/messages`).push({
+            sender: sender,
+            text: text,
+            time: Date.now()
+        });
+        
+        input.value = '';
+    }
+    
+    function closeSupportRequest() {
+        if (!currentSupportRequest) return;
+        
+        if (confirm('هل أنت متأكد من إغلاق طلب الدعم؟')) {
+            // إرسال رسالة إغلاق
+            db.ref(`supportChats/${currentSupportRequest.chatId}/messages`).push({
+                sender: 'النظام',
+                text: '🔒 تم إغلاق طلب الدعم بواسطة الإدارة',
+                time: Date.now(),
+                isSystem: true
+            });
+            
+            // تحديث حالة الطلب
+            db.ref('supportRequests').orderByChild('chatId').equalTo(currentSupportRequest.chatId).once('value', s => {
+                if (s.exists()) {
+                    let key = Object.keys(s.val())[0];
+                    db.ref(`supportRequests/${key}/status`).set('closed');
+                }
+            });
+            
+            showToast('تم إغلاق طلب الدعم', 'success');
+            exitSupportChat();
+        }
+    }
+    
+    function closeSupportRequestFromList(requestId) {
+        if (confirm('هل أنت متأكد من إغلاق طلب الدعم هذا؟')) {
+            db.ref(`supportRequests/${requestId}/status`).set('closed');
+            showToast('تم إغلاق طلب الدعم', 'success');
+        }
+    }
+    
+    function exitSupportChat() {
+        if (supportMessagesRef) {
+            supportMessagesRef.off();
+            supportMessagesRef = null;
+        }
+        currentSupportRequest = null;
+        showView('admin-screen');
+        showSupportRequests();
+    }
+    
+    function rejectSupportRequest(requestId) {
+        db.ref(`supportRequests/${requestId}/status`).set('rejected');
+        showToast('تم رفض طلب الدعم', 'warning');
+    }
+    
+    // ==================== الإدارة ====================
+    function renderAdminPanel() {}
+    
+    function showAllOrdersList() {
+        renderAllOrders();
+        showView('all-orders-screen');
+    }
+    
+    function renderAllOrders() {
+        let container = document.getElementById('admin-all-orders-list');
+        container.innerHTML = allOrders.map(o => `
+            <div class="order-card">
+                <div style="display:flex; justify-content:space-between;">
+                    <strong>${o.title}</strong>
+                    <span>${o.price} EGP</span>
+                </div>
+                <p>من: ${o.owner} | إلى: ${o.taker || 'لم يؤخذ'}</p>
+                <button class="btn-main" style="margin-top:10px; padding:8px;" onclick="adminOpenChat(${o.id})">فتح المحادثة</button>
+            </div>
+        `).join('');
+    }
+    
+    function filterAdminOrders() {
+        renderAllOrders();
+    }
+    
+    async function adminOpenChat(orderId) {
+        let order = allOrders.find(o => o.id == orderId);
+        if (order) {
+            currentOrder = order;
+            listenToMessages(order.id);
+            document.getElementById('chat-order-title').innerHTML = order.title;
+            renderChatMessages();
+            
+            let msgs = messages[order.id] || [];
+            let hasWelcome = msgs.some(m => m.sender === 'الإدارة');
+            if (!hasWelcome) {
+                await db.ref(`messages/${order.id}`).push({
+                    sender: 'الإدارة',
+                    text: '👋 مرحباً، ازاي أقدر أساعدك؟',
+                    time: Date.now()
+                });
+            }
+            chatBackScreen = 'admin-screen';
+            showView('chat-screen');
+        }
+    }
+    
+    function confirmClearChats() {
+        if (!isMainAdmin) {
+            showToast('ليس لديك صلاحية', 'error');
+            return;
+        }
+        let code = prompt('لتأكيد مسح جميع محادثات الدعم، أدخل الرمز:');
+        if (code === CONFIRM_CODE) {
+            db.ref('supportChats').remove();
+            db.ref('supportRequests').remove();
+            showToast('تم مسح جميع محادثات الدعم', 'success');
+        } else {
+            showToast('الرمز غير صحيح', 'error');
+        }
+    }
+    
+    function confirmClearOrders() {
+        if (!isMainAdmin) {
+            showToast('ليس لديك صلاحية', 'error');
+            return;
+        }
+        let code = prompt('لتأكيد مسح جميع الطلبات، أدخل الرمز:');
+        if (code === CONFIRM_CODE) {
+            db.ref('orders').remove();
+            showToast('تم مسح جميع الطلبات', 'success');
+        } else {
+            showToast('الرمز غير صحيح', 'error');
+        }
+    }
+    
+    function loadBlockedNumbers() {
+        db.ref('blockedNumbers').on('value', s => {
+            blockedNumbers = s.val() ? Object.values(s.val()) : [];
+            let container = document.getElementById('blocked-list');
+            if (blockedNumbers.length) {
+                container.innerHTML = blockedNumbers.map(n => `<div>📵 ${n} <button onclick="unblockNumber('${n}')" style="background:var(--success); border:none; padding:2px 8px; border-radius:10px; margin-right:5px;">إلغاء الحظر</button></div>`).join('');
+            } else {
+                container.innerHTML = '<small>لا توجد أرقام محظورة</small>';
+            }
+        });
+    }
+    
+    function blockNumber() {
+        if (!isMainAdmin) {
+            showToast('ليس لديك صلاحية', 'error');
+            return;
+        }
+        let phone = document.getElementById('block-phone').value.trim();
+        if (!phone) {
+            showToast('أدخل رقم الهاتف', 'warning');
+            return;
+        }
+        db.ref(`blockedNumbers/${phone.replace(/[^0-9]/g, '')}`).set(phone);
+        showToast(`تم حظر الرقم ${phone}`, 'success');
+        document.getElementById('block-phone').value = '';
+    }
+    
+    function unblockNumber(phone) {
+        if (!isMainAdmin) {
+            showToast('ليس لديك صلاحية', 'error');
+            return;
+        }
+        db.ref(`blockedNumbers/${phone.replace(/[^0-9]/g, '')}`).remove();
+        showToast(`تم إلغاء حظر ${phone}`, 'success');
+    }
+    
+    // ==================== الإعلانات ====================
+    function showAd(callback) {
+        if (noAds) { callback(); return; }
+        adCallback = callback;
+        let overlay = document.getElementById('ad-overlay');
+        let timer = document.getElementById('ad-timer');
+        let skipBtn = document.getElementById('skip-ad');
+        let timeLeft = 5;
+        timer.innerText = timeLeft;
+        skipBtn.classList.remove('active');
+        overlay.style.display = 'flex';
+        
+        if (adInterval) clearInterval(adInterval);
+        adInterval = setInterval(() => {
+            timeLeft--;
+            timer.innerText = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(adInterval);
+                skipBtn.classList.add('active');
+            }
+        }, 1000);
+    }
+    
+    function skipAd() {
+        if (!document.getElementById('skip-ad').classList.contains('active')) return;
+        clearInterval(adInterval);
+        document.getElementById('ad-overlay').style.display = 'none';
+        if (adCallback) { adCallback(); adCallback = null; }
+    }
+    
+    function showAdBeforeCreate() {
+        showAd(() => {
+            showView('create-map');
+            setTimeout(() => { if (map) map.invalidateSize(); else initMap(); }, 100);
+        });
+    }
+    
+    // ==================== مواقع الخريطة ====================
+    function openPickupLocation() {
+        if (currentOrder?.pickupCoords) {
+            window.open(`https://www.google.com/maps/search/?api=1&query=${currentOrder.pickupCoords.lat},${currentOrder.pickupCoords.lng}`, '_blank');
+        }
+    }
+    
+    function openDeliveryLocation() {
+        if (currentOrder?.dropCoords) {
+            window.open(`https://www.google.com/maps/search/?api=1&query=${currentOrder.dropCoords.lat},${currentOrder.dropCoords.lng}`, '_blank');
+        }
+    }
+    
+    function callUser() {
+        let otherUser = currentOrder.owner === currentUser.name ? currentOrder.taker : currentOrder.owner;
+        if (otherUser) {
+            db.ref('users').orderByChild('name').equalTo(otherUser).once('value').then(s => {
+                if (s.exists()) {
+                    let user = Object.values(s.val())[0];
+                    if (user.phone) window.location.href = `tel:${user.phone}`;
+                }
+            });
+        }
+    }
+    
+    function showImage(src) {
+        document.getElementById('view-image').src = src;
+        document.getElementById('image-view-modal').style.display = 'flex';
+    }
+    
+    function closeImageView() {
+        document.getElementById('image-view-modal').style.display = 'none';
+    }
+    
+    // ==================== التنقل والقوائم ====================
+    function toggleProfileDropdown() {
+        const dropdown = document.getElementById('profile-dropdown');
+        if (dropdown.style.display === 'flex') {
+            dropdown.style.display = 'none';
+        } else {
+            closeDropdowns();
+            dropdown.style.display = 'flex';
+        }
+    }
+    
+    function toggleChatDropdown() {
+        let menu = document.getElementById('chat-dropdown');
+        if (menu.style.display === 'flex') {
+            menu.style.display = 'none';
+        } else {
+            closeDropdowns();
+            menu.style.display = 'flex';
+        }
+    }
+    
+    function closeDropdowns() {
+        document.getElementById('profile-dropdown').style.display = 'none';
+        document.getElementById('chat-dropdown').style.display = 'none';
+    }
+    
+    function showView(id) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        
+        document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+        if (id === 'home') {
+            const homeNav = document.querySelector('.nav-item[onclick="showView(\'home\')"]');
+            if (homeNav) homeNav.classList.add('active');
+        }
+        if (id === 'my-orders') {
+            const myOrdersNav = document.querySelector('.nav-item[onclick="showView(\'my-orders\')"]');
+            if (myOrdersNav) myOrdersNav.classList.add('active');
+        }
+        if (id === 'my-tasks-screen') {
+            const tasksNav = document.querySelector('.nav-item[onclick="showView(\'my-tasks-screen\')"]');
+            if (tasksNav) tasksNav.classList.add('active');
+        }
+        if (id === 'profile') {
+            const profileNav = document.querySelector('.nav-item[onclick="showView(\'profile\')"]');
+            if (profileNav) profileNav.classList.add('active');
+        }
+        if (id === 'admin-screen') {
+            const adminNav = document.querySelector('.nav-item[onclick="showView(\'admin-screen\')"]');
+            if (adminNav) adminNav.classList.add('active');
+        }
+        
+        if (id === 'home') renderOrders();
+        if (id === 'my-orders') renderMyOrders();
+        if (id === 'my-tasks-screen') renderMyTasks();
+        if (id === 'follow-orders-screen') { updateProfileStats(); renderFollowOrders(); }
+        if (id === 'profile') updateProfileStats();
+        if (id === 'admin-screen' && isAdmin) { renderAdminPanel(); loadSubscriptionRequests(); loadBlockedNumbers(); loadAdminTasks(); }
+        if (id === 'create-map' && !map) setTimeout(() => initMap(), 100);
+        
+        closeDropdowns();
+    }
+    
+    function goBackFromChat() {
+        showView(chatBackScreen);
+    }
+    
+    function goBackFromSteps() {
+        showView('chat-screen');
+    }
+    
+    function closePaymentModal() {
+        document.getElementById('payment-modal').style.display = 'none';
+        document.getElementById('collection-amount').value = '';
+    }
+    
+    // ==================== الاستماع للبيانات ====================
+    function startLocationTracking() {
+        if (navigator.geolocation && !isAdmin) {
+            navigator.geolocation.watchPosition(pos => {
+                userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                if (map && !userMarker) {
+                    userMarker = L.marker([userLocation.lat, userLocation.lng], {
+                        icon: L.divIcon({ html: '<i class="fas fa-user-circle" style="font-size:24px;color:#3b82f6;"></i>', iconSize: [24, 24] })
+                    }).addTo(map);
+                } else if (map && userMarker) {
+                    userMarker.setLatLng([userLocation.lat, userLocation.lng]);
+                }
+                renderOrders();
+            });
+        }
+    }
+    
+    function startListeners() {
+        db.ref('orders').on('value', s => {
+            allOrders = s.val() ? Object.values(s.val()) : [];
+            if (document.getElementById('home').classList.contains('active')) renderOrders();
+            if (document.getElementById('my-orders').classList.contains('active')) renderMyOrders();
+            if (document.getElementById('my-tasks-screen').classList.contains('active')) renderMyTasks();
+            if (document.getElementById('follow-orders-screen').classList.contains('active')) renderFollowOrders();
+            if (isAdmin && document.getElementById('admin-screen').classList.contains('active')) { renderAdminPanel(); loadSubscriptionRequests(); }
+            updateProfileStats();
+        });
+        
+        db.ref('earnings').on('value', s => {
+            earnings = s.val() || {};
+            updateProfileStats();
+        });
+        
+        db.ref('ratings').on('value', s => {
+            ratings = s.val() || {};
+            updateProfileStats();
+            let userRatings = ratings[currentUser?.name] || [];
+            let avg = 0;
+            if (userRatings.length > 0) {
+                avg = (userRatings.reduce((a, b) => a + (b.rating || 0), 0) / userRatings.length).toFixed(1);
+            }
+            document.getElementById('profile-rating').innerText = avg;
+        });
+        
+        db.ref('adminTasks').on('value', s => {
+            adminTasks = s.val() ? Object.values(s.val()) : [];
+            if (isAdmin && document.getElementById('admin-tasks-screen').classList.contains('active')) {
+                renderAdminTasksList();
+                renderUsersTasksProgress();
+            }
+            if (document.getElementById('my-tasks-screen').classList.contains('active')) {
+                renderMyTasks();
+            }
+        });
+    }
+    
+    // ==================== تحميل المستخدم المحفوظ ====================
+    let saved = localStorage.getItem('user');
+    if (saved) {
+        let data = JSON.parse(saved);
+        if (data.isAdmin) {
+            currentUser = { uid: 'admin', name: 'admin', isAdmin: true, isMainAdmin: data.isMainAdmin || false, noAds: true };
+            isAdmin = true;
+            isMainAdmin = data.isMainAdmin || false;
+            noAds = true;
+            completeLogin();
+        } else {
+            db.ref(`users/${data.uid}`).once('value').then(s => {
+                if (s.exists()) {
+                    currentUser = s.val();
+                    currentUser.uid = data.uid;
+                    if (currentUser.isAdmin) {
+                        isAdmin = true;
+                        isMainAdmin = currentUser.isMainAdmin || false;
+                    }
+                    if (currentUser.noAds && currentUser.subscriptionEnd > Date.now()) noAds = true;
+                    loadUserData();
+                    startListeners();
+                    startLocationTracking();
+                    completeLogin();
+                }
+            });
+        }
+    }
+    
+    // تعريف الدوال globally
+    window.checkAndProceed = checkAndProceed;
+    window.verifyAdminCode = verifyAdminCode;
+    window.closeAdminCodeModal = closeAdminCodeModal;
+    window.completeRegistration = completeRegistration;
+    window.showView = showView;
+    window.filterOrders = filterOrders;
+    window.takeOrder = takeOrder;
+    window.showFollowOrders = showFollowOrders;
+    window.showFollowOrdersActive = showFollowOrdersActive;
+    window.showFollowOrdersArchive = showFollowOrdersArchive;
+    window.openOrderChat = openOrderChat;
+    window.openFollowOrderChat = openFollowOrderChat;
+    window.goBackFromChat = goBackFromChat;
+    window.goBackFromSteps = goBackFromSteps;
+    window.goBackFromSupport = goBackFromSupport;
+    window.goBackFromUserProfile = goBackFromUserProfile;
+    window.goBackFromRatings = goBackFromRatings;
+    window.goBackFromTasks = goBackFromTasks;
+    window.goBackFromAchievements = goBackFromAchievements;
+    window.goBackFromAllRatings = goBackFromAllRatings;
+    window.openOrderSteps = openOrderSteps;
+    window.sendMessage = sendMessage;
+    window.sendSupportMessage = sendSupportMessage;
+    window.openPickupLocation = openPickupLocation;
+    window.openDeliveryLocation = openDeliveryLocation;
+    window.callUser = callUser;
+    window.confirmLocation = confirmLocation;
+    window.goToDetails = goToDetails;
+    window.finishOrder = finishOrder;
+    window.markReceived = markReceived;
+    window.markDelivered = markDelivered;
+    window.showCollection = showCollection;
+    window.confirmCollection = confirmCollection;
+    window.closePaymentModal = closePaymentModal;
+    window.showAllOrdersList = showAllOrdersList;
+    window.filterAdminOrders = filterAdminOrders;
+    window.adminOpenChat = adminOpenChat;
+    window.showAllReviews = showAllReviews;
+    window.buySubscription = buySubscription;
+    window.closeSubscriptionModal = closeSubscriptionModal;
+    window.submitSubscriptionRequest = submitSubscriptionRequest;
+    window.approveSubscription = approveSubscription;
+    window.rejectSubscription = rejectSubscription;
+    window.showAppReviewModal = showAppReviewModal;
+    window.selectReviewType = selectReviewType;
+    window.sendReview = sendReview;
+    window.closeReviewModal = closeReviewModal;
+    window.logout = logout;
+    window.skipAd = skipAd;
+    window.toggleProfileDropdown = toggleProfileDropdown;
+    window.toggleChatDropdown = toggleChatDropdown;
+    window.searchSelect = searchSelect;
+    window.startVoiceRecording = startVoiceRecording;
+    window.stopVoiceRecording = stopVoiceRecording;
+    window.confirmClearChats = confirmClearChats;
+    window.confirmClearOrders = confirmClearOrders;
+    window.blockNumber = blockNumber;
+    window.unblockNumber = unblockNumber;
+    window.viewUserProfile = viewUserProfile;
+    window.closeUserProfile = closeUserProfile;
+    window.showOtherUserRatings = showOtherUserRatings;
+    window.showImage = showImage;
+    window.closeImageView = closeImageView;
+    window.showSupportRequestModal = showSupportRequestModal;
+    window.showSupportRequests = showSupportRequests;
+    window.acceptSupportRequest = acceptSupportRequest;
+    window.rejectSupportRequest = rejectSupportRequest;
+    window.copyPhoneNumber = copyPhoneNumber;
+    window.showAllUserRatings = showAllUserRatings;
+    window.showCreateAdminModal = showCreateAdminModal;
+    window.closeCreateAdminModal = closeCreateAdminModal;
+    window.createNewAdmin = createNewAdmin;
+    window.showAdminList = showAdminList;
+    window.closeAdminListModal = closeAdminListModal;
+    window.removeAdmin = removeAdmin;
+    window.closeSupportRequest = closeSupportRequest;
+    window.exitSupportChat = exitSupportChat;
+    window.openSupportChat = openSupportChat;
+    window.closeSupportRequestFromList = closeSupportRequestFromList;
+    window.toggleDarkMode = toggleDarkMode;
+    window.showMyTasks = showMyTasks;
+    window.showAchievements = showAchievements;
+    window.showAvatarOptions = showAvatarOptions;
+    window.selectDefaultAvatar = selectDefaultAvatar;
+    window.uploadCustomImage = uploadCustomImage;
+    window.closeAvatarModal = closeAvatarModal;
+    window.confirmTakeOrder = confirmTakeOrder;
+    window.rejectTakeOrder = rejectTakeOrder;
+    window.showAdminTasks = showAdminTasks;
+    window.addAdminTask = addAdminTask;
+    window.deleteAdminTask = deleteAdminTask;
+    window.showSubscriptionRequests = showSubscriptionRequests;
+    window.showSubscriptionStatus = showSubscriptionStatus;
+    window.closeSubscriptionStatusModal = closeSubscriptionStatusModal;
+    window.renewSubscription = renewSubscription;
+    window.openExistingSupportChat = openExistingSupportChat;
+    
+    voiceBtn = document.getElementById('voice-btn');
+    
+    // إغلاق القائمة عند النقر خارجها
+    document.addEventListener('click', function(event) {
+        const profileBtn = document.getElementById('profile-settings-btn');
+        const profileDropdown = document.getElementById('profile-dropdown');
+        if (profileBtn && profileDropdown && !profileBtn.contains(event.target) && !profileDropdown.contains(event.target)) {
+            profileDropdown.style.display = 'none';
+        }
+        
+        const chatBtn = document.querySelector('.settings-icon');
+        const chatDropdown = document.getElementById('chat-dropdown');
+        if (chatBtn && chatDropdown && !chatBtn.contains(event.target) && !chatDropdown.contains(event.target)) {
+            chatDropdown.style.display = 'none';
+        }
+    });
+    
+    console.log('✅ التطبيق جاهز مع جميع التعديلات المطلوبة!');
+    console.log('💰 سعر الكيلومتر:', PRICE_PER_KM, 'جنيه');
+    console.log('🔐 رمز التأكيد:', CONFIRM_CODE);
+    console.log('⭐ تم إصلاح مشكلة إرسال التقييمات نهائياً!');
+    console.log('🔴 تم إضافة الدائرة الحمراء بجانب زر التلت نقط عند قبول طلب الدعم');
+    console.log('🎯 المهمات تظهر الآن بشكل صحيح في صفحة مهماتي');
+</script>
+</body>
+</html>
